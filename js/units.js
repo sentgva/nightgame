@@ -88,14 +88,14 @@ var UNIT_TYPES = {
   },
   shooter: {
     id: 'shooter', name: 'Стрелок', cost: 100, hp: 120, cooldown: 5,
-    color: PAL.ally, fill: PAL.fillAlly,
+    color: PAL.uShooter, fill: PAL.uShooterF,
     damage: 20, fireRate: 1.0, range: 7, shotSound: 'shot',
     upgradeKey: 'damage',
     role: '20 урона, выстрел в секунду'
   },
   barrier: {
     id: 'barrier', name: 'Барьер', cost: 50, hp: 600, cooldown: 12,
-    color: PAL.textMuted, fill: PAL.fillNeutral,
+    color: PAL.uBarrier, fill: PAL.uBarrierF,
     upgradeKey: 'hp',
     role: 'Не атакует, держит удар'
   },
@@ -108,42 +108,42 @@ var UNIT_TYPES = {
   },
   shotgun: {
     id: 'shotgun', name: 'Дробовик', cost: 200, hp: 150, cooldown: 8,
-    color: PAL.ally, fill: PAL.fillAlly,
+    color: PAL.uShotgun, fill: PAL.uShotgunF,
     damage: 60, fireRate: 1 / 1.5, range: 2, spread: true, shotSound: 'shotBig',
     upgradeKey: 'damage',
     role: '60 урона на две клетки'
   },
   repeater: {
     id: 'repeater', name: 'Дуплет', cost: 175, hp: 120, cooldown: 7,
-    color: PAL.ally, fill: PAL.fillAlly,
+    color: PAL.uRepeater, fill: PAL.uRepeaterF,
     damage: 20, fireRate: 1.0, range: 7, burst: 2, shotSound: 'shot',
     upgradeKey: 'damage',
     role: 'Два снаряда за выстрел'
   },
   fan: {
     id: 'fan', name: 'Веер', cost: 250, hp: 110, cooldown: 10,
-    color: PAL.ally, fill: PAL.fillAlly,
+    color: PAL.uFan, fill: PAL.uFanF,
     damage: 15, fireRate: 0.9, range: 7, spreadCols: true, shotSound: 'shot',
     upgradeKey: 'damage',
     role: 'Бьёт в три колонки сразу'
   },
   torch: {
     id: 'torch', name: 'Горн', cost: 150, hp: 100, cooldown: 8,
-    color: PAL.spark, fill: PAL.fillSpark,
+    color: PAL.uTorch, fill: PAL.uTorchF,
     boost: 1.5,
     upgradeKey: 'boost',
     role: 'Усиливает пролетающие снаряды'
   },
   magnet: {
     id: 'magnet', name: 'Магнит', cost: 150, hp: 100, cooldown: 10,
-    color: PAL.ice, fill: PAL.fillIce,
+    color: PAL.uMagnet, fill: PAL.uMagnetF,
     fireRate: 1 / 5, range: 4, strip: true,
     upgradeKey: 'range',
     role: 'Срывает броню с броненосцев'
   },
   mine: {
     id: 'mine', name: 'Мина', cost: 25, hp: 1, cooldown: 12,
-    color: PAL.danger, fill: PAL.fillNeutral,
+    color: PAL.uMine, fill: PAL.uMineF,
     damage: 300, radius: 1.5, oneShot: true,
     upgradeKey: 'damage',
     role: 'Взрывается при контакте'

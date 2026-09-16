@@ -112,6 +112,7 @@ html, body {
   height: var(--top-h); flex: 0 0 var(--top-h);
   display: flex; align-items: center; gap: 10px;
   padding: 0 14px; background: var(--bg-panel);
+  border-radius: 0 0 16px 16px;
   font-size: 14px; font-weight: 500;
 }
 .level-list {
@@ -151,7 +152,7 @@ html, body {
 .planet-info .btn { width: 100%; }
 
 /* Планета — секция карты со своим набором уровней */
-.planet { display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px; }
+.planet { flex: 0 0 auto; display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px; }
 .planet.locked { opacity: .45; }
 .planet-head { display: flex; align-items: center; gap: 12px; padding: 0 2px; }
 .planet-mark {
@@ -173,6 +174,7 @@ html, body {
 }
 
 .level-node {
+  flex: 0 0 auto;                     /* иначе flex-колонка сплющит карточки */
   display: flex; align-items: center; gap: 12px;
   background: var(--card-bg); border: 1px solid var(--grid-line);
   border-radius: 12px; padding: 12px 14px; cursor: pointer;
@@ -203,6 +205,7 @@ html, body {
   -webkit-overflow-scrolling: touch;
 }
 .codex-item {
+  flex: 0 0 auto;                     /* иначе flex-колонка сплющит карточки */
   background: var(--card-bg); border: 1px solid var(--grid-line);
   border-radius: 12px; overflow: hidden;
 }
@@ -239,6 +242,7 @@ html, body {
   height: var(--top-h); flex: 0 0 var(--top-h);
   display: flex; align-items: center; justify-content: space-between;
   padding: 0 14px; background: var(--bg-panel);
+  border-radius: 0 0 16px 16px;
 }
 .hud-sparks { display: flex; align-items: center; gap: 7px; font-size: 15px; font-weight: 500; }
 .hud-sparks.pop { animation: pop .3s ease; }
@@ -309,6 +313,7 @@ html, body {
 .dock {
   height: var(--dock-h); flex: 0 0 var(--dock-h);
   background: var(--bg-panel);
+  border-radius: 16px 16px 0 0;
   display: flex; align-items: center; gap: 12px;
   padding: 0 14px; overflow-x: auto; overflow-y: hidden;
   -webkit-overflow-scrolling: touch; scrollbar-width: none;

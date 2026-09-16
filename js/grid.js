@@ -17,6 +17,17 @@ var PAL = {
   heal:       '#A78BFA',   // лечение и всё, что чинит врагов
   phase:      '#93C5FD',   // фантом в фазе
   ash:        '#F97316',   // раскалённые швы пепельника
+  /* У каждого защитника свой цвет: в бою роль должна читаться по цвету
+     обводки, а не по форме значка. Заливка — очень тёмная пара к нему. */
+  uShooter:   '#4ADE80',  uShooterF:  '#16241C',
+  uShotgun:   '#FACC15',  uShotgunF:  '#2A2410',
+  uRepeater:  '#2DD4BF',  uRepeaterF: '#0E2A2A',
+  uFan:       '#A3E635',  uFanF:      '#1E2A12',
+  uTorch:     '#FB923C',  uTorchF:    '#2A1C10',
+  uMagnet:    '#C084FC',  uMagnetF:   '#221A2E',
+  uBarrier:   '#94A3B8',  uBarrierF:  '#1B2430',
+  uMine:      '#DC2626',  uMineF:     '#2A1618',
+
   fillAlly:   '#16241C',
   fillEnemy:  '#181F2B',
   fillArmor:  '#1C242F',
