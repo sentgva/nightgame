@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0A0E14">
+<title>Ночная оборона</title>
+<link rel="stylesheet" href="css/style.css">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+
+<!-- Заглушка для ландшафтной ориентации -->
+<div id="rotate-blocker">
+  <div class="rotate-icon"></div>
+  <p>поверни устройство вертикально</p>
+</div>
+
+<div id="app">
+
+  <!-- ЭКРАН: главное меню -->
+  <section id="screen-menu" class="screen active">
+    <div class="menu-inner">
+      <div class="menu-mark"><canvas id="menu-mark-canvas" width="120" height="120"></canvas></div>
+      <h1 class="title">ночная оборона</h1>
+      <p class="subtitle">last row</p>
+      <div class="menu-buttons">
+        <button class="btn primary" id="btn-play">играть</button>
+        <button class="btn" id="btn-levels">карта уровней</button>
+        <button class="btn" id="btn-endless" hidden>бесконечные волны</button>
+      </div>
+      <p class="menu-note" id="menu-note"></p>
+      <button class="btn ghost small" id="btn-reset">сбросить прогресс</button>
+    </div>
+  </section>
+
+  <!-- ЭКРАН: карта уровней -->
+  <section id="screen-levels" class="screen">
+    <header class="sub-head">
+      <button class="icon-btn" id="btn-levels-back" aria-label="назад">&#8592;</button>
+      <span>карта уровней</span>
+    </header>
+    <div id="level-list" class="level-list"></div>
+  </section>
+
+  <!-- ЭКРАН: игра -->
+  <section id="screen-game" class="screen">
+    <div class="topbar">
+      <div class="hud-sparks" id="hud-sparks">
+        <i class="spark-dot"></i><span id="spark-count">0</span>
+      </div>
+      <div class="hud-wave">
+        <span class="cap">волна</span>
+        <span id="wave-count">1 / 10</span>
+      </div>
+      <div class="hud-right">
+        <div class="lives" id="lives"></div>
+        <button class="icon-btn" id="btn-sound" aria-label="звук"></button>
+        <button class="icon-btn" id="btn-pause" aria-label="пауза"></button>
+      </div>
+    </div>
+
+    <div class="field-wrap" id="field-wrap">
+      <canvas id="field"></canvas>
+      <div id="unit-menu" class="unit-menu hidden"></div>
+      <div id="wave-banner" class="wave-banner hidden">
+        <span id="wave-banner-text"></span>
+        <button class="btn tiny" id="btn-early">начать раньше</button>
+      </div>
+      <div id="toast" class="toast hidden"></div>
+    </div>
+
+    <div class="dock" id="dock"></div>
+  </section>
+
+</div>
+
+<!-- Оверлей: пауза -->
+<div id="overlay-pause" class="overlay hidden">
+  <div class="panel">
+    <h2>пауза</h2>
+    <button class="btn primary" data-act="resume">продолжить</button>
+    <button class="btn" data-act="restart">начать заново</button>
+    <button class="btn ghost" data-act="menu">выйти в меню</button>
+  </div>
+</div>
+
+<!-- Оверлей: результат уровня -->
+<div id="overlay-result" class="overlay hidden">
+  <div class="panel">
+    <h2 id="result-title">уровень пройден</h2>
+    <div class="stars" id="result-stars"></div>
+    <div class="result-stats" id="result-stats"></div>
+    <div class="row">
+      <button class="btn primary" id="btn-result-next" data-act="next">дальше</button>
+      <button class="btn" data-act="retry">ещё раз</button>
+    </div>
+    <button class="btn ghost small" data-act="share">поделиться результатом</button>
+    <button class="btn ghost small" data-act="menu">в меню</button>
+  </div>
+</div>
+
+<!-- Оверлей: обучение -->
+<div id="overlay-tutorial" class="overlay hidden tutorial">
+  <div class="panel">
+    <span class="cap" id="tut-step">шаг 1 из 3</span>
+    <h2 id="tut-title"></h2>
+    <p id="tut-text"></p>
+    <button class="btn primary" id="tut-next">дальше</button>
+    <button class="btn ghost small" id="tut-skip">пропустить</button>
+  </div>
+</div>
+
+<script src="js/storage.js"></script>
+<script src="js/telegram.js"></script>
+<script src="js/sound.js"></script>
+<script src="js/grid.js"></script>
+<script src="js/units.js"></script>
+<script src="js/enemies.js"></script>
+<script src="js/waves.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/game.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
