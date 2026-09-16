@@ -14,6 +14,9 @@ var PAL = {
   enemy:      '#F43F5E',
   ice:        '#60A5FA',
   danger:     '#DC2626',
+  heal:       '#A78BFA',   // лечение и всё, что чинит врагов
+  phase:      '#93C5FD',   // фантом в фазе
+  ash:        '#F97316',   // раскалённые швы пепельника
   fillAlly:   '#16241C',
   fillEnemy:  '#181F2B',
   fillArmor:  '#1C242F',
@@ -29,6 +32,7 @@ var Grid = {
   w: 320,         // ширина поля
   h: 448,         // высота поля
   cells: [],      // занятость: юнит или null, длина cols*rows
+  blocked: [],    // выжженные клетки: строить нельзя (механика второй планеты)
 
   /* Пересчёт размеров под доступную область.
      cellSize = min(доступная ширина / 5, доступная высота / 7) */
@@ -41,7 +45,15 @@ var Grid = {
 
   clear: function () {
     this.cells = new Array(this.cols * this.rows);
-    for (var i = 0; i < this.cells.length; i++) this.cells[i] = null;
+    this.blocked = new Array(this.cols * this.rows);
+    for (var i = 0; i < this.cells.length; i++) {
+      this.cells[i] = null;
+      this.blocked[i] = false;
+    }
+  },
+
+  isBlocked: function (col, row) {
+    return this.inside(col, row) && !!this.blocked[this.idx(col, row)];
   },
 
   idx: function (col, row) { return row * this.cols + col; },
@@ -61,7 +73,9 @@ var Grid = {
   },
 
   isFree: function (col, row) {
-    return this.inside(col, row) && !this.cells[this.idx(col, row)];
+    return this.inside(col, row) &&
+      !this.cells[this.idx(col, row)] &&
+      !this.blocked[this.idx(col, row)];
   },
 
   centerX: function (col) { return (col + 0.5) * this.cell; },

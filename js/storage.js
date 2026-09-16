@@ -47,8 +47,9 @@ var Storage = (function () {
   function completeLevel(levelId, stars) {
     var prev = data.stars[levelId] || 0;
     if (stars > prev) data.stars[levelId] = stars;
-    if (levelId + 1 > data.maxLevel) data.maxLevel = Math.min(levelId + 1, 10);
-    if (levelId >= 10) data.campaignDone = true;
+    var total = Waves.total;
+    if (levelId + 1 > data.maxLevel) data.maxLevel = Math.min(levelId + 1, total);
+    if (levelId >= total) data.campaignDone = true;
     data.stats.levels++;
     save();
   }

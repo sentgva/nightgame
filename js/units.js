@@ -49,6 +49,20 @@ var Draw = {
     ctx.stroke();
     ctx.restore();
   },
+  /* Полоска-индикатор со скруглёнными торцами */
+  bar: function (ctx, x, y, w, h, pct, bgColor, fgColor) {
+    var r = h / 2;
+    ctx.fillStyle = bgColor;
+    Draw.roundRect(ctx, x, y, w, h, r);
+    ctx.fill();
+    pct = Math.max(0, Math.min(1, pct));
+    if (pct <= 0) return;
+    var fw = Math.max(h, w * pct);   // не уже собственной высоты, иначе торцы схлопываются
+    ctx.fillStyle = fgColor;
+    Draw.roundRect(ctx, x, y, fw, h, r);
+    ctx.fill();
+  },
+
   glowCircle: function (ctx, cx, cy, r, color, alpha, spread) {
     ctx.save();
     ctx.globalAlpha = alpha;
@@ -68,7 +82,7 @@ var UNIT_TYPES = {
   beacon: {
     id: 'beacon', name: 'Маяк', cost: 50, hp: 100, cooldown: 5,
     color: PAL.spark, fill: PAL.fillSpark,
-    produce: 25, interval: 8,
+    produce: 25, interval: 6,
     upgradeKey: 'produce',
     role: 'Производит искры'
   },
@@ -99,6 +113,34 @@ var UNIT_TYPES = {
     upgradeKey: 'damage',
     role: '60 урона на две клетки'
   },
+  repeater: {
+    id: 'repeater', name: 'Дуплет', cost: 175, hp: 120, cooldown: 7,
+    color: PAL.ally, fill: PAL.fillAlly,
+    damage: 20, fireRate: 1.0, range: 7, burst: 2, shotSound: 'shot',
+    upgradeKey: 'damage',
+    role: 'Два снаряда за выстрел'
+  },
+  fan: {
+    id: 'fan', name: 'Веер', cost: 250, hp: 110, cooldown: 10,
+    color: PAL.ally, fill: PAL.fillAlly,
+    damage: 15, fireRate: 0.9, range: 7, spreadCols: true, shotSound: 'shot',
+    upgradeKey: 'damage',
+    role: 'Бьёт в три колонки сразу'
+  },
+  torch: {
+    id: 'torch', name: 'Горн', cost: 150, hp: 100, cooldown: 8,
+    color: PAL.spark, fill: PAL.fillSpark,
+    boost: 1.5,
+    upgradeKey: 'boost',
+    role: 'Усиливает пролетающие снаряды'
+  },
+  magnet: {
+    id: 'magnet', name: 'Магнит', cost: 150, hp: 100, cooldown: 10,
+    color: PAL.ice, fill: PAL.fillIce,
+    fireRate: 1 / 5, range: 4, strip: true,
+    upgradeKey: 'range',
+    role: 'Срывает броню с броненосцев'
+  },
   mine: {
     id: 'mine', name: 'Мина', cost: 25, hp: 1, cooldown: 12,
     color: PAL.danger, fill: PAL.fillNeutral,
@@ -109,7 +151,8 @@ var UNIT_TYPES = {
 };
 
 /* Порядок карточек в нижней панели */
-var UNIT_ORDER = ['beacon', 'shooter', 'barrier', 'freezer', 'shotgun', 'mine'];
+var UNIT_ORDER = ['beacon', 'shooter', 'barrier', 'mine', 'freezer',
+                  'shotgun', 'repeater', 'torch', 'magnet', 'fan'];
 
 var Units = {
   /* Создание юнита на клетке */
@@ -126,6 +169,7 @@ var Units = {
       flash: 0,          // вспышка выстрела
       hurt: 0,           // мигание при уроне
       spawnT: 0,         // анимация постановки
+      frozen: 0,         // остаток обледенения: пока тикает, юнит молчит
       dead: false
     };
   },
@@ -203,14 +247,32 @@ var Units = {
       ctx.restore();
     }
 
+    // Ледяная корка: юнит скован и не действует, пока по нему не тапнут
+    if (opts.frozen) {
+      ctx.save();
+      ctx.globalAlpha = 0.5;
+      ctx.fillStyle = PAL.fillIce;
+      Draw.roundRect(ctx, x - cell * 0.33, y - cell * 0.33, cell * 0.66, cell * 0.66, cell * 0.12);
+      ctx.fill();
+      ctx.globalAlpha = 0.9;
+      ctx.strokeStyle = PAL.ice;
+      ctx.lineWidth = Math.max(1, 1.4 * k);
+      ctx.stroke();
+      // Осколки
+      ctx.globalAlpha = 0.55;
+      ctx.beginPath();
+      ctx.moveTo(x - cell * 0.22, y - cell * 0.06); ctx.lineTo(x - cell * 0.06, y - cell * 0.22);
+      ctx.moveTo(x + cell * 0.04, y + cell * 0.20); ctx.lineTo(x + cell * 0.22, y + cell * 0.02);
+      ctx.moveTo(x - cell * 0.14, y + cell * 0.18); ctx.lineTo(x - cell * 0.02, y + cell * 0.06);
+      ctx.stroke();
+      ctx.restore();
+    }
+
     // Полоска здоровья появляется только после урона
     if (opts.hp !== undefined && opts.maxHp && opts.hp < opts.maxHp) {
-      var barW = cell * 0.5, barH = Math.max(2, 3 * k);
+      var barW = cell * 0.5, barH = Math.max(3, 3.5 * k);
       var by = y + cell * 0.33;
-      ctx.fillStyle = PAL.gridLine;
-      ctx.fillRect(x - barW / 2, by, barW, barH);
-      ctx.fillStyle = t.color;
-      ctx.fillRect(x - barW / 2, by, barW * Math.max(0, opts.hp / opts.maxHp), barH);
+      Draw.bar(ctx, x - barW / 2, by, barW, barH, opts.hp / opts.maxHp, PAL.gridLine, t.color);
     }
   },
 
@@ -375,6 +437,116 @@ var Units = {
       ctx.fillStyle = t.color;
       ctx.globalAlpha = 0.6;
       ctx.fillRect(-u * 0.15, u * 0.02, u * 0.30, u * 0.045);
+      ctx.globalAlpha = 1;
+    },
+
+    /* Дуплет: широкий корпус с двумя параллельными стволами */
+    repeater: function (ctx, u, k, t, opts, time) {
+      ctx.lineWidth = Math.max(1, k);
+      ctx.fillStyle = t.fill;
+      ctx.strokeStyle = t.color;
+
+      Draw.roundRect(ctx, -u * 0.155, -u * 0.36, u * 0.11, u * 0.24, u * 0.025);
+      ctx.fill(); ctx.stroke();
+      Draw.roundRect(ctx, u * 0.045, -u * 0.36, u * 0.11, u * 0.24, u * 0.025);
+      ctx.fill(); ctx.stroke();
+
+      Units.body(ctx, t, opts, u * 0.52, u * 0.40, u * 0.11, u * 0.05);
+
+      // Два прицела
+      ctx.fillStyle = t.color;
+      ctx.globalAlpha = 0.25;
+      Draw.circle(ctx, -u * 0.10, u * 0.06, u * 0.085); ctx.fill();
+      Draw.circle(ctx, u * 0.10, u * 0.06, u * 0.085); ctx.fill();
+      ctx.globalAlpha = 1;
+      Draw.circle(ctx, -u * 0.10, u * 0.06, u * 0.04); ctx.fill();
+      Draw.circle(ctx, u * 0.10, u * 0.06, u * 0.04); ctx.fill();
+    },
+
+    /* Веер: три ствола, расходящиеся в стороны */
+    fan: function (ctx, u, k, t, opts, time) {
+      ctx.lineWidth = Math.max(1, k);
+      ctx.strokeStyle = t.color;
+      ctx.fillStyle = t.fill;
+
+      // Стволы веером
+      var angles = [-0.42, 0, 0.42];
+      for (var i = 0; i < 3; i++) {
+        ctx.save();
+        ctx.rotate(angles[i]);
+        Draw.roundRect(ctx, -u * 0.045, -u * 0.36, u * 0.09, u * 0.20, u * 0.02);
+        ctx.fill(); ctx.stroke();
+        ctx.restore();
+      }
+
+      Units.body(ctx, t, opts, u * 0.50, u * 0.36, u * 0.10, u * 0.07);
+
+      // Веерная риска на корпусе
+      ctx.strokeStyle = t.color;
+      ctx.globalAlpha = 0.6;
+      ctx.lineWidth = Math.max(1, 1.2 * k);
+      ctx.beginPath();
+      ctx.arc(0, u * 0.10, u * 0.12, Math.PI * 1.15, Math.PI * 1.85);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    },
+
+    /* Горн: жаровня с живым языком пламени */
+    torch: function (ctx, u, k, t, opts, time) {
+      ctx.lineWidth = Math.max(1, k);
+      var flick = 0.5 + 0.5 * Math.sin(time * 7.3);
+
+      // Чаша
+      ctx.fillStyle = opts.hurt ? '#2A323C' : t.fill;
+      ctx.strokeStyle = t.color;
+      Draw.poly(ctx, [
+        [-u * 0.26, u * 0.02], [u * 0.26, u * 0.02],
+        [u * 0.17, u * 0.27], [-u * 0.17, u * 0.27]
+      ]);
+      ctx.fill(); ctx.stroke();
+
+      // Ножка
+      ctx.fillStyle = t.color;
+      ctx.globalAlpha = 0.5;
+      ctx.fillRect(-u * 0.10, u * 0.27, u * 0.20, u * 0.04);
+      ctx.globalAlpha = 1;
+
+      // Пламя: внешний язык дышит, ядро ровное
+      ctx.fillStyle = t.color;
+      ctx.globalAlpha = 0.25 + 0.2 * flick;
+      Draw.poly(ctx, [
+        [0, -u * 0.34 - u * 0.04 * flick],
+        [u * 0.13, u * 0.01], [-u * 0.13, u * 0.01]
+      ]);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      Draw.poly(ctx, [
+        [0, -u * 0.20 - u * 0.03 * flick],
+        [u * 0.06, u * 0.01], [-u * 0.06, u * 0.01]
+      ]);
+      ctx.fill();
+    },
+
+    /* Магнит: подкова с двумя полюсами */
+    magnet: function (ctx, u, k, t, opts, time) {
+      ctx.lineWidth = Math.max(1, k);
+      Units.body(ctx, t, opts, u * 0.50, u * 0.46, u * 0.12, 0);
+
+      // Дуга подковы
+      ctx.strokeStyle = t.color;
+      ctx.lineWidth = Math.max(2, 4 * k);
+      ctx.beginPath();
+      ctx.arc(0, u * 0.03, u * 0.14, Math.PI, Math.PI * 2);
+      ctx.stroke();
+
+      // Полюса
+      ctx.fillStyle = t.color;
+      ctx.fillRect(-u * 0.175, u * 0.03, u * 0.07, u * 0.11);
+      ctx.fillRect(u * 0.105, u * 0.03, u * 0.07, u * 0.11);
+
+      // Поле вокруг — дышит
+      ctx.globalAlpha = 0.12 + 0.12 * (0.5 + 0.5 * Math.sin(time * 2.6));
+      Draw.glowCircle(ctx, 0, 0, u * 0.26, t.color, 1, 3 * k);
       ctx.globalAlpha = 1;
     },
 

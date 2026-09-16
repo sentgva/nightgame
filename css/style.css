@@ -118,6 +118,28 @@ html, body {
   flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 8px;
   -webkit-overflow-scrolling: touch;
 }
+/* Планета — секция карты со своим набором уровней */
+.planet { display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px; }
+.planet.locked { opacity: .45; }
+.planet-head { display: flex; align-items: center; gap: 12px; padding: 0 2px; }
+.planet-mark {
+  width: 34px; height: 34px; flex: 0 0 34px;
+  border-radius: 50%; border: 1px solid var(--ice);
+  color: var(--ice); background: var(--fill-ice);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; font-weight: 500;
+}
+.planet.locked .planet-mark { border-color: var(--grid-line); color: var(--text-muted); background: var(--card-locked); }
+.planet-meta { flex: 1; min-width: 0; }
+.planet-name { font-size: 15px; font-weight: 500; }
+.planet-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.planet-score { font-size: 11px; color: var(--spark); }
+.planet.locked .planet-score { color: var(--text-muted); }
+.planet-desc {
+  font-size: 11px; color: var(--text-muted); line-height: 1.5;
+  padding: 0 2px 4px; margin-top: -2px;
+}
+
 .level-node {
   display: flex; align-items: center; gap: 12px;
   background: var(--card-bg); border: 1px solid var(--grid-line);

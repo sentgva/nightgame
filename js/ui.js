@@ -115,7 +115,7 @@ var UI = {
   refreshMenu: function () {
     var d = Storage.data;
     var name = TG.userName();
-    var note = 'Открыто уровней: ' + Math.min(d.maxLevel, 10) + ' из 10';
+    var note = 'Открыто уровней: ' + Math.min(d.maxLevel, Waves.total) + ' из ' + Waves.total;
     if (d.campaignDone) note = 'Кампания пройдена';
     if (d.endlessBest) note += ' · рекорд: ' + d.endlessBest + ' волн';
     if (!Storage.available) note += ' · прогресс не сохраняется';
@@ -124,50 +124,90 @@ var UI = {
     this.el.btnEndless.hidden = !d.campaignDone;
   },
 
-  /* ---------------- Карта уровней ---------------- */
+  /* ---------------- Карта уровней ----------------
+     Три планеты, у каждой своя механика и свой набор уровней. */
   buildLevels: function () {
     var list = this.el.levelList;
     list.innerHTML = '';
     var d = Storage.data;
-    for (var i = 0; i < LEVELS.length; i++) {
-      (function (lvl, self) {
-        var stars = d.stars[lvl.id] || 0;
-        var unlockedLevel = lvl.id <= d.maxLevel;
-        var node = document.createElement('div');
-        node.className = 'level-node' +
-          (unlockedLevel ? '' : ' locked') +
-          (stars > 0 ? ' done' : '') +
-          (lvl.id === d.maxLevel && unlockedLevel ? ' current' : '');
 
-        var num = document.createElement('div');
-        num.className = 'level-num';
-        num.textContent = lvl.id;
+    for (var p = 0; p < PLANETS.length; p++) {
+      var planet = PLANETS[p];
+      var levels = Waves.ofPlanet(planet.id);
+      var firstId = levels[0].id;
+      var planetOpen = firstId <= d.maxLevel;
 
-        var meta = document.createElement('div');
-        meta.className = 'level-meta';
-        var nm = document.createElement('div');
-        nm.className = 'level-name';
-        nm.textContent = lvl.name;
-        var sub = document.createElement('div');
-        sub.className = 'level-sub';
-        sub.textContent = unlockedLevel ? lvl.hint || '10 волн' : 'Заблокирован';
-        meta.appendChild(nm); meta.appendChild(sub);
+      var wrap = document.createElement('div');
+      wrap.className = 'planet' + (planetOpen ? '' : ' locked');
 
-        var st = document.createElement('div');
-        st.className = 'level-stars';
-        for (var s = 0; s < 3; s++) {
-          var dot = document.createElement('i');
-          dot.className = 'star' + (s < stars ? ' on' : '');
-          st.appendChild(dot);
-        }
+      // Шапка планеты: номер, имя, сколько звёзд собрано
+      var got = 0;
+      for (var i = 0; i < levels.length; i++) got += (d.stars[levels[i].id] || 0);
 
-        node.appendChild(num); node.appendChild(meta); node.appendChild(st);
-        if (unlockedLevel) {
-          node.addEventListener('click', function () { Sound.resume(); Main.playLevel(lvl.id); });
-        }
-        list.appendChild(node);
-      })(LEVELS[i], this);
+      var head = document.createElement('div');
+      head.className = 'planet-head';
+      var mark = document.createElement('div');
+      mark.className = 'planet-mark';
+      mark.textContent = planet.id;
+      var meta = document.createElement('div');
+      meta.className = 'planet-meta';
+      meta.innerHTML = '<div class="planet-name">' + planet.name + '</div>' +
+        '<div class="planet-sub">' + planet.sub + ' · ' + levels.length + ' уровней</div>';
+      var score = document.createElement('div');
+      score.className = 'planet-score';
+      score.textContent = got + ' / ' + (levels.length * 3);
+      head.appendChild(mark); head.appendChild(meta); head.appendChild(score);
+
+      var desc = document.createElement('div');
+      desc.className = 'planet-desc';
+      desc.textContent = planetOpen ? planet.desc : 'Откроется после предыдущей планеты';
+
+      wrap.appendChild(head);
+      wrap.appendChild(desc);
+
+      for (var j = 0; j < levels.length; j++) {
+        wrap.appendChild(this.makeLevelNode(levels[j], d));
+      }
+      list.appendChild(wrap);
     }
+  },
+
+  makeLevelNode: function (lvl, d) {
+    var stars = d.stars[lvl.id] || 0;
+    var open = lvl.id <= d.maxLevel;
+    var node = document.createElement('div');
+    node.className = 'level-node' +
+      (open ? '' : ' locked') +
+      (stars > 0 ? ' done' : '') +
+      (lvl.id === d.maxLevel && open ? ' current' : '');
+
+    var num = document.createElement('div');
+    num.className = 'level-num';
+    num.textContent = lvl.id;
+
+    var meta = document.createElement('div');
+    meta.className = 'level-meta';
+    var nm = document.createElement('div');
+    nm.className = 'level-name';
+    nm.textContent = lvl.name;
+    var sub = document.createElement('div');
+    sub.className = 'level-sub';
+    sub.textContent = open ? (lvl.hint || '10 волн') : 'Заблокирован';
+    meta.appendChild(nm); meta.appendChild(sub);
+
+    var st = document.createElement('div');
+    st.className = 'level-stars';
+    for (var s = 0; s < 3; s++) {
+      var dot = document.createElement('i');
+      dot.className = 'star' + (s < stars ? ' on' : '');
+      st.appendChild(dot);
+    }
+
+    node.appendChild(num); node.appendChild(meta); node.appendChild(st);
+    if (open) {
+      node.addEventListener('click', function () { Sound.resume(); Main.playLevel(lvl.id); });
+    }
+    return node;
   },
 
   /* ---------------- Игровой хром ---------------- */
@@ -409,7 +449,7 @@ var UI = {
   },
 
   showResult: function (game, won, stars) {
-    var last = !game.endless && game.levelId >= LEVELS.length;
+    var last = !game.endless && game.levelId >= Waves.total;
     this.el.resultTitle.textContent = won
       ? (last ? 'Кампания пройдена' : 'Уровень пройден')
       : 'Рубеж прорван';
