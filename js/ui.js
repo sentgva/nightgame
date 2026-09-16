@@ -120,7 +120,7 @@ var UI = {
     if (d.endlessBest) note += ' · рекорд: ' + d.endlessBest + ' волн';
     if (!Storage.available) note += ' · прогресс не сохраняется';
     if (name) note = name + ', ' + note.charAt(0).toLowerCase() + note.slice(1);
-    this.el.menuNote.textContent = note;
+    this.el.menuNote.textContent = note + ' · v' + APP_VERSION;
     this.el.btnEndless.hidden = !d.campaignDone;
   },
 
