@@ -177,7 +177,7 @@ var UI = {
     for (var i = 0; i < levels.length; i++) got += (d.stars[levels[i].id] || 0);
 
     this.el.planetTitle.textContent = p.name;
-    this.el.planetSub.textContent = p.sub;
+    this.el.planetSub.textContent = 'Акт ' + p.act + ' · ' + p.sub;
     this.el.planetDesc.textContent = locked
       ? 'Откроется, когда пройдёшь предыдущую планету'
       : p.desc;

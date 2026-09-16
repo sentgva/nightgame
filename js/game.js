@@ -31,6 +31,8 @@ var CONFIG = {
   sellRefund: 0.5,         // доля возврата при продаже
   jumpTime: 0.5,           // длительность прыжка прыгуна, сек
   iceThaw: 10,             // само оттаивает за столько секунд, если не тапнуть
+  sporeTime: 6,            // сколько секунд споры душат темп стрельбы
+  sporeSlow: 2,            // во сколько раз реже стреляет заспоренный юнит
   breachPulseCells: 2      // за сколько клеток до рубежа он начинает пульсировать
 };
 
@@ -50,7 +52,7 @@ var Game = {
   trickleAcc: 0,
   cardCd: {},
   selected: null, lastPlaceTs: 0, menuUnit: null,
-  iceT: 0,
+  iceT: 0, collapseT: 0, sporeT: 0,
   shake: 0, edgeFlash: 0,
 
   /* ---------------- Инициализация ---------------- */
@@ -99,7 +101,10 @@ var Game = {
 
     Grid.clear();
     this.placeCraters(this.level.craters);
+    this.placeVines(this.level.vines);
     this.iceT = this.level.iceEvery || 0;
+    this.collapseT = this.level.collapseEvery || 0;
+    this.sporeT = this.level.sporeEvery || 0;
     this.sparks = this.level.startSparks;
     this.lives = CONFIG.lives;
     this.waveIndex = 0;
@@ -199,6 +204,8 @@ var Game = {
     this.stepPopups(dt);
     this.stepTrickle(dt);
     this.stepIce(dt);
+    this.stepCollapse(dt);
+    this.stepSpores(dt);
     this.stepWaves(dt);
 
     UI.tickCards(this);
@@ -214,6 +221,27 @@ var Game = {
       if (u.flash > 0) u.flash -= dt / 0.08;
       if (u.hurt > 0) u.hurt -= dt;
       if (u.frozen > 0) { u.frozen = Math.max(0, u.frozen - dt); return; }
+      if (u.spored > 0) u.spored = Math.max(0, u.spored - dt);
+
+      // Ремонтник чинит соседей по сторонам света
+      if (u.def.repair) {
+        u.cd -= dt;
+        if (u.cd > 0) return;
+        u.cd = 1 / u.def.fireRate;
+        var around = [[0, -1], [0, 1], [-1, 0], [1, 0]];
+        var healed = false;
+        for (var a = 0; a < around.length; a++) {
+          var n = Grid.get(col + around[a][0], row + around[a][1]);
+          if (!n || n.dead || n.hp >= n.maxHp) continue;
+          n.hp = Math.min(n.maxHp, n.hp + Units.stat(u, 'repair'));
+          healed = true;
+        }
+        if (healed) {
+          u.flash = 1;
+          self.spawnParticles(Grid.centerX(col), Grid.centerY(row), 3, u.def.color, 90, 0.3, true);
+        }
+        return;
+      }
 
       if (u.type === 'beacon') {
         if (self.phase !== 'wave') return;   // в паузе маяки не работают
@@ -258,7 +286,7 @@ var Game = {
       if (u.cd > 0) return;
       var target = self.findEnemyForUnit(u, col, row);
       if (!target) return;
-      u.cd = 1 / u.def.fireRate;
+      u.cd = (1 / u.def.fireRate) * (u.spored > 0 ? CONFIG.sporeSlow : 1);
       u.flash = 1;
       Sound.play(u.def.shotSound || 'shot');
       self.fire(u, col, row);
@@ -309,6 +337,10 @@ var Game = {
     p.dmg = Units.stat(u, 'damage');
     p.color = u.def.color;
     p.boosted = false;
+    p.splash = u.def.splash || 0;
+    p.pierce = !!u.def.pierce;
+    p.hits = p.hits || [];
+    p.hits.length = 0;
     p.slow = u.def.slow || 0;
     p.slowTime = u.level > 1 && u.def.upgradeKey === 'damage'
       ? (u.def.slowTime || 0) * 1.5 : (u.def.slowTime || 0);
@@ -342,9 +374,7 @@ var Game = {
       var e = this.enemies[i];
       if (e.dead || e.phased) continue;
       var ex = Enemies.centerX(e, Grid.cell);
-      if (Math.abs(ex - mx) <= r && Math.abs(e.y - my) <= r) {
-        if (Enemies.hurt(e, dmg)) this.killEnemy(e);
-      }
+      if (Math.abs(ex - mx) <= r && Math.abs(e.y - my) <= r) this.hitEnemy(e, dmg);
     }
     u.dead = true;
     Grid.set(u.col, u.row, null);
@@ -353,6 +383,7 @@ var Game = {
   /* ---------------- Враги ---------------- */
   stepEnemies: function (dt) {
     var cell = Grid.cell;
+    this.stepAuras();
     for (var i = this.enemies.length - 1; i >= 0; i--) {
       var e = this.enemies[i];
       if (e.dead) { this.enemies.splice(i, 1); continue; }
@@ -387,7 +418,21 @@ var Game = {
           this.healAround(e);
         }
       }
+      // Носитель высаживает личинок прямо на ходу
+      if (e.def.spawnEvery && e.y > 0) {
+        e.spawnEveryT -= dt;
+        if (e.spawnEveryT <= 0) {
+          e.spawnEveryT = e.def.spawnEvery;
+          var kid = Enemies.create(e.def.spawnType, e.col, { hpMul: (this.level.hpScale || 1) * 0.7 });
+          kid.y = e.y - cell * 0.4;
+          kid.spawnT = 1;
+          this.enemies.push(kid);
+          this.spawnParticles(Enemies.centerX(e, cell), e.y, 4, PAL.enemy, 110, 0.3, false);
+        }
+      }
+
       var slowMul = e.slowT > 0 ? 0.6 : 1;
+      if (e.hasted) slowMul *= e.hasted;
       var blocker = this.findBlockingUnit(e);
       e.blocked = !!blocker;
 
@@ -414,6 +459,20 @@ var Game = {
           e.jumpTo = Grid.centerY(blocker.row) + cell * 0.75;
           continue;
         }
+        // Пожиратель первого встречного защитника съедает целиком.
+        // Барьер ему не по зубам — это и есть контра: без барьеров строй
+        // растворялся бесплатно, и уровень становился нечестным.
+        if (e.devourLeft > 0 && blocker.type !== 'barrier') {
+          e.devourLeft--;
+          e.attacking = 0.4;
+          Sound.play('mine');
+          TG.haptic('heavy');
+          this.spawnParticles(Grid.centerX(blocker.col), Grid.centerY(blocker.row),
+            10, PAL.enemy, 210, 0.35, false);
+          this.damageUnit(blocker, blocker.maxHp * 10);
+          continue;
+        }
+
         e.atkCd -= dt;
         if (e.atkCd <= 0) {
           e.atkCd = 1 / e.def.atkRate;
@@ -609,13 +668,23 @@ var Game = {
         if (e.dead || e.spawnT < 0.3 || e.phased) continue;
         if (!this.enemyCoversColumn(e, p.col)) continue;
         var half = Enemies.bodySize(e, cell) / 2;
-        if (Math.abs(e.y - p.y) <= half) {
-          if (p.slow > 0) { e.slowT = Math.max(e.slowT, p.slowTime); }
-          if (Enemies.hurt(e, p.dmg)) this.killEnemy(e);
-          this.spawnParticles(p.x, p.y, 5, p.color, 130, 0.25, true);
-          p.active = false;
-          break;
+        if (Math.abs(e.y - p.y) > half) continue;
+
+        // Лазер прошивает колонку: каждого задевает ровно один раз
+        if (p.pierce) {
+          if (p.hits.indexOf(e) !== -1) continue;
+          p.hits.push(e);
+          this.hitEnemy(e, p.dmg);
+          this.spawnParticles(p.x, p.y, 2, p.color, 90, 0.2, true);
+          continue;
         }
+
+        if (p.slow > 0) { e.slowT = Math.max(e.slowT, p.slowTime); }
+        if (p.splash > 0) this.splashHit(p, e);
+        else this.hitEnemy(e, p.dmg);
+        this.spawnParticles(p.x, p.y, 5, p.color, 130, 0.25, true);
+        p.active = false;
+        break;
       }
     }
   },
@@ -654,6 +723,52 @@ var Game = {
     }
   },
 
+  /* Урон врагу с учётом ауры щитоносца */
+  hitEnemy: function (e, amount) {
+    if (e.guarded) amount *= e.guarded;
+    if (Enemies.hurt(e, amount)) { this.killEnemy(e); return true; }
+    return false;
+  },
+
+  /* Мортира: взрыв по площади вокруг точки попадания */
+  splashHit: function (p, target) {
+    var r = p.splash * Grid.cell;
+    var tx = Enemies.centerX(target, Grid.cell), ty = target.y;
+    Sound.play('mine');
+    this.spawnParticles(tx, ty, 8, p.color, 200, 0.35, false);
+    for (var i = 0; i < this.enemies.length; i++) {
+      var e = this.enemies[i];
+      if (e.dead || e.phased) continue;
+      var dx = Enemies.centerX(e, Grid.cell) - tx, dy = e.y - ty;
+      if (Math.sqrt(dx * dx + dy * dy) <= r) this.hitEnemy(e, p.dmg);
+    }
+  },
+
+  /* Ауры: ревун разгоняет соседей, щитоносец режет им получаемый урон */
+  stepAuras: function () {
+    var cell = Grid.cell;
+    var i, j, e;
+    for (i = 0; i < this.enemies.length; i++) {
+      this.enemies[i].hasted = false;
+      this.enemies[i].guarded = false;
+    }
+    for (i = 0; i < this.enemies.length; i++) {
+      var src = this.enemies[i];
+      if (src.dead || src.y < 0) continue;
+      if (!src.def.auraSpeed && !src.def.auraGuard) continue;
+      var reach = src.def.auraRange * cell;
+      var sx = Enemies.centerX(src, cell);
+      for (j = 0; j < this.enemies.length; j++) {
+        e = this.enemies[j];
+        if (e === src || e.dead) continue;
+        var dx = Enemies.centerX(e, cell) - sx, dy = e.y - src.y;
+        if (Math.sqrt(dx * dx + dy * dy) > reach) continue;
+        if (src.def.auraSpeed) e.hasted = src.def.auraSpeed;
+        if (src.def.auraGuard) e.guarded = src.def.auraGuard;
+      }
+    }
+  },
+
   /* ---------------- Механики планет ----------------
      Пустоши: часть клеток выжжена и застроить их нельзя. Раскладка
      детерминированная — переигрывать уровень с новой картой было бы нечестно.
@@ -675,6 +790,66 @@ var Game = {
     }
   },
 
+  /* Джунгли: часть клеток заросла. Строить нельзя, пока не расчистишь тапом —
+     это бесплатно, но стоит времени в самый неподходящий момент. */
+  placeVines: function (n) {
+    if (!n) return;
+    var rand = rng(this.levelId * 31337 + 11);
+    var perCol = [];
+    for (var c = 0; c < Grid.cols; c++) perCol.push(0);
+    var placed = 0, guard = 0;
+    while (placed < n && guard++ < 400) {
+      var col = Math.floor(rand() * Grid.cols);
+      var row = 1 + Math.floor(rand() * (Grid.rows - 1));
+      if (perCol[col] >= 2 || Grid.isVine(col, row) || Grid.isBlocked(col, row)) continue;
+      Grid.vines[Grid.idx(col, row)] = true;
+      perCol[col]++;
+      placed++;
+    }
+  },
+
+  /* Рудник: по ходу боя своды обваливаются и отнимают пустые клетки.
+     Занятые не трогаем — терять построенное из-за случайности нечестно. */
+  stepCollapse: function (dt) {
+    var every = this.level.collapseEvery;
+    if (!every || this.phase !== 'wave' || this.over) return;
+    this.collapseT -= dt;
+    if (this.collapseT > 0) return;
+    this.collapseT = every;
+
+    var free = [];
+    for (var r = 1; r < Grid.rows; r++) {
+      for (var c = 0; c < Grid.cols; c++) {
+        if (Grid.isFree(c, r)) free.push([c, r]);
+      }
+    }
+    if (free.length <= Grid.cols) return;        // совсем зажимать поле не будем
+
+    var pick = free[Math.floor(Math.random() * free.length)];
+    Grid.blocked[Grid.idx(pick[0], pick[1])] = true;
+    Sound.play('mine');
+    this.spawnParticles(Grid.centerX(pick[0]), Grid.centerY(pick[1]), 8, PAL.ash, 160, 0.4, false);
+    UI.toast('Обвал');
+  },
+
+  /* Улей: споры оседают на защитнике и вдвое сбивают ему темп.
+     Сами выветриваются — в отличие от льда тапать не нужно. */
+  stepSpores: function (dt) {
+    var every = this.level.sporeEvery;
+    if (!every || this.phase !== 'wave' || this.over) return;
+    this.sporeT -= dt;
+    if (this.sporeT > 0) return;
+    this.sporeT = every;
+
+    var list = [];
+    Grid.each(function (u) { if (!u.spored && u.def.fireRate) list.push(u); });
+    if (!list.length) return;
+
+    var victim = list[Math.floor(Math.random() * list.length)];
+    victim.spored = CONFIG.sporeTime;
+    this.spawnParticles(Grid.centerX(victim.col), Grid.centerY(victim.row), 6, '#84CC16', 120, 0.4, false);
+  },
+
   /* Станция: раз в несколько секунд случайный защитник покрывается льдом
      и замолкает. Тап отогревает мгновенно, сам оттаивает за iceThaw. */
   stepIce: function (dt) {
@@ -692,6 +867,35 @@ var Game = {
     victim.frozen = CONFIG.iceThaw;
     Sound.play('freeze');
     this.spawnParticles(Grid.centerX(victim.col), Grid.centerY(victim.row), 6, PAL.ice, 130, 0.35, false);
+  },
+
+  /* Заросшие клетки: решётка из лиан поверх фона */
+  drawVines: function (ctx, cell) {
+    if (!Grid.vines.length) return;
+    ctx.save();
+    for (var r = 0; r < Grid.rows; r++) {
+      for (var c = 0; c < Grid.cols; c++) {
+        if (!Grid.vines[Grid.idx(c, r)]) continue;
+        var x = c * cell, y = r * cell;
+        ctx.globalAlpha = 0.16;
+        ctx.fillStyle = '#65A30D';
+        Draw.roundRect(ctx, x + 2, y + 2, cell - 4, cell - 4, 8);
+        ctx.fill();
+        ctx.globalAlpha = 0.5;
+        ctx.strokeStyle = '#84CC16';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        for (var i = 1; i <= 3; i++) {
+          var t = i / 4;
+          ctx.moveTo(x + cell * t, y + 4);
+          ctx.lineTo(x + cell * t, y + cell - 4);
+          ctx.moveTo(x + 4, y + cell * t);
+          ctx.lineTo(x + cell - 4, y + cell * t);
+        }
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
   },
 
   /* Выжженные клетки */
@@ -921,6 +1125,15 @@ var Game = {
     var c = Grid.cellAt(x, y);
     if (!c) { this.deselect(); this.closeUnitMenu(); return; }
 
+    // Заросли расчищаются тапом — бесплатно, но занимает ход
+    if (Grid.isVine(c.col, c.row)) {
+      Grid.vines[Grid.idx(c.col, c.row)] = false;
+      Sound.play('pick');
+      TG.haptic('light');
+      this.spawnParticles(Grid.centerX(c.col), Grid.centerY(c.row), 8, '#65A30D', 150, 0.35, false);
+      return;
+    }
+
     // Лёд снимается тапом и всегда важнее любого другого действия по клетке
     var chilled = Grid.get(c.col, c.row);
     if (chilled && chilled.frozen > 0) {
@@ -1060,6 +1273,7 @@ var Game = {
 
     this.drawGrid(ctx, cell, W, H);
     this.drawCraters(ctx, cell);
+    this.drawVines(ctx, cell);
     this.drawFog(ctx, W, H);
     this.drawPlacementHint(ctx, cell);
     this.drawUnits(ctx, cell, k);
@@ -1156,7 +1370,8 @@ var Game = {
       if (u.type === 'mine') return;
       Units.draw(ctx, Grid.centerX(c), Grid.centerY(r), cell, u.type, {
         level: u.level, flash: u.flash, hurt: u.hurt > 0, time: Game.time,
-        frozen: u.frozen > 0, hp: u.hp, maxHp: u.maxHp, scale: Game.placeScale(u)
+        frozen: u.frozen > 0, spored: u.spored > 0,
+        hp: u.hp, maxHp: u.maxHp, scale: Game.placeScale(u)
       });
     });
 

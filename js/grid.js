@@ -17,6 +17,8 @@ var PAL = {
   heal:       '#A78BFA',   // лечение и всё, что чинит врагов
   phase:      '#93C5FD',   // фантом в фазе
   ash:        '#F97316',   // раскалённые швы пепельника
+  aura:       '#FBBF24',   // аура ревуна: враги вокруг ускоряются
+  shield:     '#38BDF8',   // аура щитоносца: враги вокруг держат урон
   /* У каждого защитника свой цвет: в бою роль должна читаться по цвету
      обводки, а не по форме значка. Заливка — очень тёмная пара к нему. */
   uShooter:   '#4ADE80',  uShooterF:  '#16241C',
@@ -27,6 +29,9 @@ var PAL = {
   uMagnet:    '#C084FC',  uMagnetF:   '#221A2E',
   uBarrier:   '#94A3B8',  uBarrierF:  '#1B2430',
   uMine:      '#DC2626',  uMineF:     '#2A1618',
+  uMortar:    '#FB7185',  uMortarF:   '#2A1620',
+  uLaser:     '#F1F5F9',  uLaserF:    '#202833',
+  uRepair:    '#E879F9',  uRepairF:   '#281630',
 
   fillAlly:   '#16241C',
   fillEnemy:  '#181F2B',
@@ -43,7 +48,8 @@ var Grid = {
   w: 320,         // ширина поля
   h: 448,         // высота поля
   cells: [],      // занятость: юнит или null, длина cols*rows
-  blocked: [],    // выжженные клетки: строить нельзя (механика второй планеты)
+  blocked: [],    // выжженные клетки и обвалы: строить нельзя
+  vines: [],      // заросшие клетки: чистятся тапом (механика Джунглей)
 
   /* Пересчёт размеров под доступную область.
      cellSize = min(доступная ширина / 5, доступная высота / 7) */
@@ -57,9 +63,11 @@ var Grid = {
   clear: function () {
     this.cells = new Array(this.cols * this.rows);
     this.blocked = new Array(this.cols * this.rows);
+    this.vines = new Array(this.cols * this.rows);
     for (var i = 0; i < this.cells.length; i++) {
       this.cells[i] = null;
       this.blocked[i] = false;
+      this.vines[i] = false;
     }
   },
 
@@ -86,7 +94,12 @@ var Grid = {
   isFree: function (col, row) {
     return this.inside(col, row) &&
       !this.cells[this.idx(col, row)] &&
-      !this.blocked[this.idx(col, row)];
+      !this.blocked[this.idx(col, row)] &&
+      !this.vines[this.idx(col, row)];
+  },
+
+  isVine: function (col, row) {
+    return this.inside(col, row) && !!this.vines[this.idx(col, row)];
   },
 
   centerX: function (col) { return (col + 0.5) * this.cell; },

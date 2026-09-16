@@ -53,7 +53,10 @@ function rng(seed) {
 /* Раньше этих волн тяжёлый враг не выходит ни на одном уровне.
    Броненосец или лекарь в первой волне позднего уровня — это не сложность,
    а срыв партии до того, как игрок успел что-то построить. */
-var MIN_WAVE = { armored: 3, phantom: 3, swarm: 4, healer: 5 };
+var MIN_WAVE = {
+  armored: 3, phantom: 3, swarm: 4, healer: 5,
+  carrier: 3, howler: 3, shielder: 4, devourer: 4
+};
 
 /* Разворачивает паспорт уровня в 10 волн */
 function mk(o) {
@@ -62,7 +65,7 @@ function mk(o) {
 
   for (var w = 1; w <= 10; w++) {
     var groups = [];
-    var count = Math.round((o.base + o.growth * (w - 1)) * DENSITY * (w === 10 ? 1.3 : 1));
+    var count = Math.round((o.base + o.growth * (w - 1)) * DENSITY * (w === 10 ? 1.2 : 1));
     var gap = Math.max(1.1, o.gap - (w - 1) * 0.07);
 
     // Какие типы уже вышли на сцену к этой волне
@@ -94,7 +97,7 @@ function mk(o) {
 
     if (o.boss && o.boss.wave === w) {
       for (var b = 0; b < (o.boss.count || 1); b++) {
-        groups.push(g('boss', 1, 0, 2 + b * 7, Math.floor(rand() * (COLS - 1)),
+        groups.push(g(o.boss.type || 'boss', 1, 0, 2 + b * 7, Math.floor(rand() * (COLS - 1)),
           { hpMul: o.boss.hpMul || 1 }));
       }
     }
@@ -105,9 +108,43 @@ function mk(o) {
   return {
     id: o.id, planet: o.planet, name: o.name, hint: o.hint,
     startSparks: o.startSparks, hpScale: o.hpScale || 1,
-    unlock: o.unlock || [], craters: o.craters || 0, iceEvery: o.iceEvery || 0,
+    unlock: o.unlock || [],
+    craters: o.craters || 0, vines: o.vines || 0,
+    iceEvery: o.iceEvery || 0, collapseEvery: o.collapseEvery || 0,
+    sporeEvery: o.sporeEvery || 0,
     waves: waves
   };
+}
+
+/* Разворачивает планету целиком: характеристики плавно растут от первого
+   уровня к последнему, чтобы не выписывать каждый паспорт вручную. */
+function gen(o) {
+  var out = [];
+  for (var i = 0; i < o.count; i++) {
+    var t = o.count > 1 ? i / (o.count - 1) : 0;
+    var lerp = function (pair) { return pair[0] + (pair[1] - pair[0]) * t; };
+    out.push(mk({
+      id: o.from + i,
+      planet: o.planet,
+      name: o.names[i],
+      hint: (o.hints && o.hints[i + 1]) || o.hint,
+      startSparks: Math.round(lerp(o.sparks) / 25) * 25,
+      hpScale: +lerp(o.hp).toFixed(3),
+      unlock: (o.unlocks && o.unlocks[i + 1]) || [],
+      pool: o.pool,
+      base: +lerp(o.base).toFixed(2),
+      growth: o.growth,
+      gap: o.gap,
+      cols: o.cols,
+      boss: o.bosses && o.bosses[i + 1],
+      craters: o.craters || 0,
+      vines: o.vines || 0,
+      iceEvery: o.iceEvery || 0,
+      collapseEvery: o.collapseEvery || 0,
+      sporeEvery: o.sporeEvery || 0
+    }));
+  }
+  return out;
 }
 
 /* ---------------------------------------------------------------------- */
@@ -115,18 +152,49 @@ function mk(o) {
 var PLANETS = [
   {
     id: 1, name: 'Ферма', sub: 'Где всё началось', levels: 5, mechanic: null,
-    color: '#4ADE80', fill: '#16241C', feature: 'fields',
+    color: '#4ADE80', fill: '#16241C', feature: 'fields', act: 1,
     desc: 'Тихое поле и обычные твари. Учимся держать строй.'
   },
   {
     id: 2, name: 'Пепельные пустоши', sub: 'Выжженная земля', levels: 10, mechanic: 'craters',
-    color: '#F97316', fill: '#2A1A12', feature: 'craters',
+    color: '#F97316', fill: '#2A1A12', feature: 'craters', act: 2 - 1,
     desc: 'Часть клеток выжжена — строить на них нельзя. Из пепла лезут фантомы.'
   },
   {
     id: 3, name: 'Ледяная станция', sub: 'Мороз и тьма', levels: 15, mechanic: 'ice',
     color: '#60A5FA', fill: '#152232', feature: 'ice', ring: true,
+    act: 1,
     desc: 'Защитники покрываются льдом и замолкают. Коснись, чтобы отогреть. Здесь открывается третья ступень улучшений.'
+  },
+  {
+    id: 4, name: 'Джунгли', sub: 'Второй круг', levels: 8, mechanic: 'vines',
+    color: '#22C55E', fill: '#132A1B', feature: 'fields', act: 2,
+    desc: 'Половина поля заросла. Заросли снимаются тапом бесплатно, но время стоит дорого. Здесь появляется Ремонтник.'
+  },
+  {
+    id: 5, name: 'Рудник', sub: 'Под землёй', levels: 10, mechanic: 'collapse',
+    color: '#D97706', fill: '#2A1E0E', feature: 'craters', act: 2,
+    desc: 'Своды обваливаются прямо в бою и забирают свободные клетки. Здесь появляется Мортира.'
+  },
+  {
+    id: 6, name: 'Улей', sub: 'Живая стена', levels: 12, mechanic: 'spores',
+    color: '#84CC16', fill: '#1E2A10', feature: 'fields', act: 2,
+    desc: 'Споры оседают на защитниках и вдвое сбивают им темп. Здесь появляется Лазер.'
+  },
+  {
+    id: 7, name: 'Разлом', sub: 'Третий круг', levels: 10, mechanic: 'craters+ice',
+    color: '#E879F9', fill: '#281630', feature: 'craters', act: 3,
+    desc: 'Выжженные клетки и лёд разом. Отсюда начинается тяжёлая часть.'
+  },
+  {
+    id: 8, name: 'Печь', sub: 'Жар и пепел', levels: 12, mechanic: 'collapse+spores',
+    color: '#EF4444', fill: '#2A1414', feature: 'craters', act: 3,
+    desc: 'Обвалы и споры одновременно. Поле сжимается быстрее, чем ты строишь.'
+  },
+  {
+    id: 9, name: 'Бездна', sub: 'Конец пути', levels: 14, mechanic: 'all',
+    color: '#818CF8', fill: '#1A1B33', feature: 'ice', ring: true, act: 3,
+    desc: 'Всё сразу: кратеры, лёд и споры. Последние четырнадцать ночей.'
   }
 ];
 
@@ -281,6 +349,93 @@ var LEVELS = [
        pool: [['walker', 1, 2], ['runner', 1, 2], ['burster', 1, 2], ['jumper', 1, 2], ['armored', 1, 2], ['phantom', 1, 2], ['swarm', 1, 2], ['healer', 1, 2]],
        base: 9, growth: 1.5, gap: 1.5, boss: { wave: 10, count: 2, hpMul: 1.7 } })
 ];
+
+/* ================= АКТ II: планеты 4-6, уровни 31-60 ================= */
+LEVELS = LEVELS.concat(
+  gen({
+    planet: 4, from: 31, count: 8, vines: 4,
+    names: ['Кромка', 'Лианы', 'Топь', 'Гнездо', 'Полог', 'Корни', 'Сердце чащи', 'Матка роя'],
+    hint: 'Заросли снимаются тапом — расчищай заранее, не под волной',
+    hints: { 1: 'Ремонтник чинит соседей — ставь его в середину строя',
+             3: 'Носитель высаживает бегунов прямо на ходу',
+             5: 'Ревун разгоняет всех вокруг себя — выбивай его первым' },
+    unlocks: { 1: ['repair'] },
+    pool: [['walker', 1, 2], ['runner', 1, 2], ['jumper', 2, 2],
+           ['burster', 2, 2], ['carrier', 3, 2], ['howler', 5, 2]],
+    base: [6, 8], growth: 1.3, gap: 2.1,
+    sparks: [400, 450], hp: [1.55, 1.8],
+    bosses: { 8: { wave: 10, count: 1, hpMul: 1.3 } }
+  }),
+  gen({
+    planet: 5, from: 39, count: 10, collapseEvery: 18,
+    names: ['Ствол шахты', 'Первый горизонт', 'Обвал', 'Штрек', 'Рудная жила',
+            'Глубокий забой', 'Провал', 'Затопленный ярус', 'Клеть', 'Хозяин рудника'],
+    hint: 'Своды обваливаются: свободных клеток с каждой волной меньше',
+    hints: { 1: 'Мортира бьёт по площади — по плотной волне это выгоднее одиночного урона',
+             4: 'Щитоносец вдвое режет урон по соседям' },
+    unlocks: { 1: ['mortar'] },
+    pool: [['walker', 1, 2], ['runner', 1, 2], ['burster', 2, 2],
+           ['armored', 3, 2], ['howler', 3, 2], ['shielder', 4, 2]],
+    base: [5, 7], growth: 1.3, gap: 2.0,
+    sparks: [450, 500], hp: [1.75, 2.0],
+    bosses: { 10: { wave: 10, count: 1, hpMul: 1.4 } }
+  }),
+  gen({
+    planet: 6, from: 49, count: 12, sporeEvery: 10,
+    names: ['Порог улья', 'Споры', 'Соты', 'Кладка', 'Рабочий ярус', 'Дым',
+            'Личинки', 'Трутни', 'Галерея', 'Кормовая', 'Королевская камера', 'Рой королевы'],
+    hint: 'Споры сбивают темп вдвое и выветриваются сами',
+    hints: { 1: 'Лазер прошивает всю колонку — чем плотнее строй врага, тем он выгоднее' },
+    unlocks: { 1: ['laser'] },
+    pool: [['walker', 1, 2], ['runner', 1, 2], ['carrier', 2, 2], ['swarm', 3, 2],
+           ['phantom', 3, 2], ['howler', 4, 2], ['shielder', 5, 2]],
+    base: [6, 8], growth: 1.3, gap: 1.9,
+    sparks: [500, 575], hp: [1.95, 2.2],
+    bosses: { 6: { wave: 10, count: 1, hpMul: 1.2 },
+              12: { wave: 10, type: 'titan', count: 1, hpMul: 1.2 } }
+  })
+);
+
+/* ================= АКТ III: планеты 7-9, уровни 61-96 ================= */
+LEVELS = LEVELS.concat(
+  gen({
+    planet: 7, from: 61, count: 10, craters: 4, iceEvery: 11,
+    names: ['Трещина', 'Первый мост', 'Осколки', 'Провал', 'Эхо',
+            'Ледяной разлом', 'Стена', 'Тень разлома', 'Перевал', 'Страж разлома'],
+    hint: 'Кратеры и лёд одновременно',
+    hints: { 3: 'Пожиратель съедает первого защитника целиком, не разгрызая' },
+    pool: [['walker', 1, 2], ['runner', 1, 2], ['armored', 2, 2], ['phantom', 3, 2],
+           ['devourer', 4, 2], ['shielder', 4, 2], ['healer', 5, 2]],
+    base: [6, 8], growth: 1.15, gap: 1.9, cols: 2,
+    sparks: [600, 675], hp: [1.95, 2.15],
+    bosses: { 10: { wave: 10, type: 'titan', count: 1, hpMul: 1.4 } }
+  }),
+  gen({
+    planet: 8, from: 71, count: 12, collapseEvery: 16, sporeEvery: 11,
+    names: ['Заслонка', 'Жар', 'Литейный', 'Шлак', 'Горн печи', 'Выплавка',
+            'Раскал', 'Форма', 'Слиток', 'Топка', 'Дымоход', 'Мастер печи'],
+    hint: 'Обвалы и споры вместе: поле сжимается, а строй молчит',
+    pool: [['walker', 1, 2], ['burster', 1, 2], ['armored', 2, 2], ['carrier', 3, 2],
+           ['howler', 3, 2], ['devourer', 4, 2], ['swarm', 5, 2]],
+    base: [6, 8], growth: 1.15, gap: 1.8,
+    sparks: [675, 775], hp: [2.15, 2.35],
+    bosses: { 6: { wave: 10, type: 'titan', count: 1, hpMul: 1.3 },
+              12: { wave: 10, type: 'titan', count: 2, hpMul: 1.3 } }
+  }),
+  gen({
+    planet: 9, from: 83, count: 14, craters: 5, iceEvery: 11, sporeEvery: 11,
+    names: ['Порог', 'Спуск', 'Пустота', 'Тишина', 'Шёпот', 'Провал', 'Изнанка',
+            'Грань', 'Тьма', 'Дно', 'Отражение', 'Последний свет', 'Сердце бездны', 'Конец'],
+    hint: 'Всё сразу: кратеры, лёд и споры',
+    hints: { 14: 'Последняя ночь. Два титана и колосс следом' },
+    pool: [['walker', 1, 2], ['runner', 1, 2], ['armored', 2, 2], ['phantom', 2, 2],
+           ['devourer', 3, 2], ['shielder', 4, 2], ['swarm', 4, 2], ['healer', 5, 2]],
+    base: [6, 8], growth: 1.2, gap: 1.7,
+    sparks: [775, 900], hp: [2.2, 2.42],
+    bosses: { 7: { wave: 10, type: 'titan', count: 1, hpMul: 1.4 },
+              14: { wave: 10, type: 'titan', count: 2, hpMul: 1.5 } }
+  })
+);
 
 var Waves = {
   levels: LEVELS,

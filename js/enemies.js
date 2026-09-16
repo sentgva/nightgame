@@ -53,6 +53,35 @@ var ENEMY_TYPES = {
     heal: 8, healRange: 2,                  // чинит соседей в своей колонке
     scale: 1.0, spark: 45, sparkChance: 0.7
   },
+  carrier: {
+    id: 'carrier', name: 'Носитель',
+    hp: 260, speed: 0.13, damage: 16, atkRate: 0.8,
+    spawnEvery: 6, spawnType: 'runner',      // на ходу высаживает бегунов
+    scale: 1.2, spark: 40, sparkChance: 0.7
+  },
+  howler: {
+    id: 'howler', name: 'Ревун',
+    hp: 180, speed: 0.18, damage: 14, atkRate: 1.0,
+    auraSpeed: 1.28, auraRange: 2,           // разгоняет соседей
+    scale: 1.05, spark: 35, sparkChance: 0.6
+  },
+  shielder: {
+    id: 'shielder', name: 'Щитоносец',
+    hp: 220, speed: 0.14, damage: 18, atkRate: 0.8,
+    auraGuard: 0.72, auraRange: 2,            // вдвое режет урон по соседям
+    scale: 1.1, spark: 40, sparkChance: 0.7
+  },
+  devourer: {
+    id: 'devourer', name: 'Пожиратель',
+    hp: 200, speed: 0.20, damage: 25, atkRate: 1.2,
+    devour: 1,                               // первого защитника съедает целиком
+    scale: 1.05, spark: 35, sparkChance: 0.6
+  },
+  titan: {
+    id: 'titan', name: 'Титан',
+    hp: 3000, armor: 800, speed: 0.10, damage: 90, atkRate: 0.6,
+    width: 2, scale: 1.5, boss: true, spark: 400, sparkChance: 1
+  },
   boss: {
     id: 'boss', name: 'Колосс',
     hp: 1800, speed: 0.15, damage: 70, atkRate: 0.8,
@@ -81,6 +110,10 @@ var Enemies = {
       atkCd: 0,
       attacking: 0,               // подсветка момента удара
       phaseT: Math.random() * (t.phaseEvery || 1),
+      spawnEveryT: t.spawnEvery || 0,
+      devourLeft: t.devour || 0,
+      hasted: false,              // подсветка ауры ревуна
+      guarded: false,             // подсветка ауры щитоносца
       phased: false,              // в фазе снаряды проходят насквозь
       healT: 0,
       target: null,
@@ -146,6 +179,28 @@ var Enemies = {
 
     var shape = Enemies.shapes[enemy.type] || Enemies.shapes.walker;
     shape(ctx, cell, k, enemy, time, gait);
+
+    // Аура соседей: видно, кого прикрыли или разогнали
+    if (enemy.guarded) {
+      ctx.save();
+      ctx.globalAlpha *= 0.55;
+      ctx.strokeStyle = PAL.shield;
+      ctx.lineWidth = Math.max(1, 1.4 * k);
+      Draw.circle(ctx, 0, 0, cell * 0.36);
+      ctx.stroke();
+      ctx.restore();
+    }
+    if (enemy.hasted) {
+      ctx.save();
+      ctx.globalAlpha *= 0.5;
+      ctx.strokeStyle = PAL.aura;
+      ctx.lineWidth = Math.max(1, 1.2 * k);
+      ctx.beginPath();
+      ctx.moveTo(-cell * 0.30, -cell * 0.26); ctx.lineTo(-cell * 0.20, -cell * 0.34);
+      ctx.moveTo(cell * 0.20, -cell * 0.34); ctx.lineTo(cell * 0.30, -cell * 0.26);
+      ctx.stroke();
+      ctx.restore();
+    }
 
     ctx.restore();
 
@@ -457,6 +512,181 @@ var Enemies = {
       ctx.restore();
 
       Enemies.eyes(ctx, u, k, e, 0.09, -u * 0.12, 1.3 * k);
+    },
+
+    /* Носитель: горбатая туша с коконом на спине */
+    carrier: function (ctx, u, k, e, time, gait) {
+      Enemies.shell(ctx, e, k, function () {
+        Draw.poly(ctx, [
+          [-u * 0.30, -u * 0.10], [-u * 0.16, -u * 0.28],
+          [u * 0.16, -u * 0.28], [u * 0.30, -u * 0.10],
+          [u * 0.26, u * 0.28], [-u * 0.26, u * 0.28]
+        ]);
+      });
+
+      // Кокон: внутри шевелятся личинки
+      ctx.save();
+      ctx.globalAlpha *= 0.8;
+      ctx.fillStyle = PAL.fillArmor;
+      ctx.strokeStyle = PAL.gridLine;
+      ctx.lineWidth = Math.max(1, k);
+      Draw.roundRect(ctx, -u * 0.17, -u * 0.22, u * 0.34, u * 0.22, u * 0.09);
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = PAL.enemy;
+      ctx.globalAlpha *= 0.6;
+      for (var i = -1; i <= 1; i++) {
+        Draw.circle(ctx, i * u * 0.10, -u * 0.11 + Math.sin(time * 3 + i) * u * 0.015, u * 0.03);
+        ctx.fill();
+      }
+      ctx.restore();
+
+      Enemies.eyes(ctx, u, k, e, 0.13, u * 0.08, 1.5 * k);
+    },
+
+    /* Ревун: раструб вместо головы, вокруг расходятся звуковые круги */
+    howler: function (ctx, u, k, e, time, gait) {
+      // Круги звука
+      ctx.save();
+      var ring = (time * 0.8) % 1;
+      ctx.globalAlpha *= 0.30 * (1 - ring);
+      ctx.strokeStyle = PAL.aura;
+      ctx.lineWidth = Math.max(1, 1.4 * k);
+      Draw.circle(ctx, 0, 0, u * 0.30 + ring * u * 0.30);
+      ctx.stroke();
+      ctx.restore();
+
+      Enemies.shell(ctx, e, k, function () {
+        Draw.poly(ctx, [
+          [-u * 0.18, -u * 0.22], [u * 0.18, -u * 0.22],
+          [u * 0.28, u * 0.26], [-u * 0.28, u * 0.26]
+        ]);
+      });
+
+      // Раструб
+      ctx.save();
+      ctx.globalAlpha *= 0.85;
+      ctx.strokeStyle = PAL.aura;
+      ctx.lineWidth = Math.max(1, 1.4 * k);
+      ctx.beginPath();
+      ctx.moveTo(-u * 0.06, -u * 0.22);
+      ctx.lineTo(-u * 0.20, -u * 0.38);
+      ctx.moveTo(u * 0.06, -u * 0.22);
+      ctx.lineTo(u * 0.20, -u * 0.38);
+      ctx.moveTo(-u * 0.20, -u * 0.38);
+      ctx.lineTo(u * 0.20, -u * 0.38);
+      ctx.stroke();
+      ctx.restore();
+
+      Enemies.eyes(ctx, u, k, e, 0.10, -u * 0.04, 1.3 * k);
+    },
+
+    /* Щитоносец: массивная плита перед корпусом */
+    shielder: function (ctx, u, k, e, time, gait) {
+      Enemies.shell(ctx, e, k, function () {
+        Draw.roundRect(ctx, -u * 0.24, -u * 0.26, u * 0.48, u * 0.52, u * 0.10);
+      });
+
+      Enemies.eyes(ctx, u, k, e, 0.11, -u * 0.13, 1.4 * k);
+
+      // Плита закрывает нижнюю половину и слегка светится
+      ctx.save();
+      ctx.globalAlpha *= 0.9;
+      ctx.fillStyle = '#26323F';
+      ctx.strokeStyle = PAL.shield;
+      ctx.lineWidth = Math.max(1, 1.2 * k);
+      Draw.poly(ctx, [
+        [-u * 0.32, u * 0.00], [u * 0.32, u * 0.00],
+        [u * 0.26, u * 0.30], [-u * 0.26, u * 0.30]
+      ]);
+      ctx.fill(); ctx.stroke();
+      ctx.globalAlpha *= 0.5;
+      ctx.beginPath();
+      ctx.moveTo(0, u * 0.02); ctx.lineTo(0, u * 0.28);
+      ctx.stroke();
+      ctx.restore();
+    },
+
+    /* Пожиратель: почти одна пасть с частоколом зубов */
+    devourer: function (ctx, u, k, e, time, gait) {
+      var bite = e.devourLeft > 0 ? 0.5 + 0.5 * Math.sin(time * 4 + e.wobble) : 0.2;
+
+      Enemies.shell(ctx, e, k, function () {
+        Draw.roundRect(ctx, -u * 0.27, -u * 0.26, u * 0.54, u * 0.52, u * 0.20);
+      });
+
+      // Пасть
+      ctx.save();
+      ctx.fillStyle = PAL.bgDeep;
+      Draw.poly(ctx, [
+        [-u * 0.21, u * 0.02], [u * 0.21, u * 0.02],
+        [u * 0.15, u * 0.24], [-u * 0.15, u * 0.24]
+      ]);
+      ctx.fill();
+
+      // Зубы смыкаются, пока враг не сожрал свою жертву
+      ctx.fillStyle = '#D8DEE6';
+      ctx.globalAlpha *= 0.85;
+      for (var i = 0; i < 4; i++) {
+        var x = -u * 0.16 + i * u * 0.105;
+        var h = u * (0.05 + 0.03 * bite);
+        Draw.poly(ctx, [[x, u * 0.02], [x + u * 0.05, u * 0.02], [x + u * 0.025, u * 0.02 + h]]);
+        ctx.fill();
+        Draw.poly(ctx, [[x, u * 0.24], [x + u * 0.05, u * 0.24], [x + u * 0.025, u * 0.24 - h]]);
+        ctx.fill();
+      }
+      ctx.restore();
+
+      Enemies.eyes(ctx, u, k, e, 0.15, -u * 0.15, 1.5 * k);
+    },
+
+    /* Титан: второй босс — плечистый силуэт в тяжёлой броне */
+    titan: function (ctx, u, k, e, time, gait) {
+      // Наплечники
+      ctx.save();
+      ctx.fillStyle = '#39434F';
+      ctx.strokeStyle = '#4A5563';
+      ctx.lineWidth = Math.max(1, k);
+      Draw.roundRect(ctx, -u * 0.56, -u * 0.26, u * 0.20, u * 0.26, u * 0.06);
+      ctx.fill(); ctx.stroke();
+      Draw.roundRect(ctx, u * 0.36, -u * 0.26, u * 0.20, u * 0.26, u * 0.06);
+      ctx.fill(); ctx.stroke();
+      ctx.restore();
+
+      Enemies.shell(ctx, e, k, function () {
+        Draw.poly(ctx, [
+          [-u * 0.30, -u * 0.32], [u * 0.30, -u * 0.32],
+          [u * 0.44, -u * 0.04], [u * 0.38, u * 0.30],
+          [-u * 0.38, u * 0.30], [-u * 0.44, -u * 0.04]
+        ]);
+      });
+
+      // Нагрудная плита, пока держится броня
+      if (e.armor > 0) {
+        ctx.save();
+        ctx.fillStyle = '#39434F';
+        ctx.strokeStyle = '#5A6573';
+        ctx.lineWidth = Math.max(1, k);
+        Draw.poly(ctx, [
+          [-u * 0.26, u * 0.00], [u * 0.26, u * 0.00],
+          [u * 0.20, u * 0.26], [-u * 0.20, u * 0.26]
+        ]);
+        ctx.fill(); ctx.stroke();
+        ctx.restore();
+      }
+
+      // Два тяжёлых глаза под козырьком
+      ctx.fillStyle = PAL.enemy;
+      Draw.circle(ctx, -u * 0.15, -u * 0.16, 2.6 * k); ctx.fill();
+      Draw.circle(ctx, u * 0.15, -u * 0.16, 2.6 * k); ctx.fill();
+
+      ctx.save();
+      ctx.globalAlpha *= 0.4;
+      ctx.strokeStyle = PAL.enemy;
+      ctx.lineWidth = Math.max(1, 1.4 * k);
+      ctx.beginPath();
+      ctx.moveTo(-u * 0.30, -u * 0.26); ctx.lineTo(u * 0.30, -u * 0.26);
+      ctx.stroke();
+      ctx.restore();
     },
 
     /* Колосс: две колонки в ширину, рога и четыре глаза */

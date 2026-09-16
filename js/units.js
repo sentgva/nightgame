@@ -141,6 +141,27 @@ var UNIT_TYPES = {
     upgradeKey: 'range',
     role: 'Срывает броню с броненосцев'
   },
+  mortar: {
+    id: 'mortar', name: 'Мортира', cost: 225, hp: 120, cooldown: 12,
+    color: PAL.uMortar, fill: PAL.uMortarF,
+    damage: 45, fireRate: 0.5, range: 6, splash: 1.0, shotSound: 'shotBig',
+    upgradeKey: 'damage',
+    role: 'Бьёт по площади навесом'
+  },
+  laser: {
+    id: 'laser', name: 'Лазер', cost: 275, hp: 100, cooldown: 14,
+    color: PAL.uLaser, fill: PAL.uLaserF,
+    damage: 14, fireRate: 1.6, range: 7, pierce: true, shotSound: 'freeze',
+    upgradeKey: 'damage',
+    role: 'Прошивает всю колонку насквозь'
+  },
+  repair: {
+    id: 'repair', name: 'Ремонтник', cost: 125, hp: 130, cooldown: 10,
+    color: PAL.uRepair, fill: PAL.uRepairF,
+    fireRate: 1, repair: 14,
+    upgradeKey: 'repair',
+    role: 'Чинит соседних защитников'
+  },
   mine: {
     id: 'mine', name: 'Мина', cost: 25, hp: 1, cooldown: 12,
     color: PAL.uMine, fill: PAL.uMineF,
@@ -152,7 +173,8 @@ var UNIT_TYPES = {
 
 /* Порядок карточек в нижней панели */
 var UNIT_ORDER = ['beacon', 'shooter', 'barrier', 'mine', 'freezer',
-                  'shotgun', 'repeater', 'torch', 'magnet', 'fan'];
+                  'shotgun', 'repeater', 'torch', 'magnet', 'fan',
+                  'repair', 'mortar', 'laser'];
 
 /* Множитель основного параметра по ступеням: 1 — обычный, 2 — улучшенный,
    3 — доступен только на Ледяной станции. */
@@ -175,6 +197,7 @@ var Units = {
       hurt: 0,           // мигание при уроне
       spawnT: 0,         // анимация постановки
       frozen: 0,         // остаток обледенения: пока тикает, юнит молчит
+      spored: 0,         // споры: пока тикают, темп вдвое ниже
       dead: false
     };
   },
@@ -231,6 +254,9 @@ var Units = {
     if (def.produce) {
       lines.push(['Доход', Math.round(Units.stat(fake, 'produce')) + ' искр раз в ' + def.interval + ' с', grows('produce')]);
     }
+    if (def.splash) lines.push(['Разлёт', def.splash + ' кл. вокруг цели', false]);
+    if (def.pierce) lines.push(['Прошивает', 'всех в колонке', false]);
+    if (def.repair) lines.push(['Ремонт', Math.round(Units.stat(fake, 'repair')) + ' HP/с соседям', grows('repair')]);
     if (def.radius) lines.push(['Взрыв', def.radius + ' кл. вокруг', false]);
     lines.push(['Прочность', Math.round(def.hp * (grows('hp') ? TIER_MUL[level] : 1)), grows('hp')]);
     lines.push(['Перезарядка карточки', def.cooldown + ' с', false]);
@@ -279,6 +305,23 @@ var Units = {
       ctx.globalAlpha = Math.min(1, opts.flash) * 0.3;
       Draw.circle(ctx, x, y - cell * 0.30 * s, 6.5 * k * s);
       ctx.fill();
+      ctx.restore();
+    }
+
+    // Споры: зелёная дымка над юнитом, темп стрельбы вдвое ниже
+    if (opts.spored) {
+      ctx.save();
+      ctx.globalAlpha = 0.28;
+      ctx.fillStyle = '#65A30D';
+      Draw.circle(ctx, x, y, cell * 0.34);
+      ctx.fill();
+      ctx.globalAlpha = 0.6;
+      ctx.strokeStyle = '#84CC16';
+      ctx.lineWidth = Math.max(1, k);
+      ctx.setLineDash([3 * k, 3 * k]);
+      Draw.circle(ctx, x, y, cell * 0.34);
+      ctx.stroke();
+      ctx.setLineDash([]);
       ctx.restore();
     }
 
@@ -658,6 +701,100 @@ var Units = {
       ctx.globalAlpha = 0.12 + 0.12 * (0.5 + 0.5 * Math.sin(time * 2.6));
       Draw.glowCircle(ctx, 0, 0, u * 0.26, t.color, 1, 3 * k);
       ctx.globalAlpha = 1;
+    },
+
+    /* Мортира: короткий толстый ствол под углом на станине */
+    mortar: function (ctx, u, k, t, opts, time) {
+      ctx.lineWidth = Math.max(1, k);
+
+      // Станина
+      ctx.fillStyle = opts.hurt ? '#2A323C' : t.fill;
+      ctx.strokeStyle = t.color;
+      Draw.poly(ctx, [
+        [-u * 0.28, u * 0.10], [u * 0.28, u * 0.10],
+        [u * 0.22, u * 0.28], [-u * 0.22, u * 0.28]
+      ]);
+      ctx.fill(); ctx.stroke();
+
+      // Ствол навесом
+      ctx.save();
+      ctx.rotate(-0.28);
+      Draw.roundRect(ctx, -u * 0.105, -u * 0.32, u * 0.21, u * 0.38, u * 0.05);
+      ctx.fill(); ctx.stroke();
+      // Дульный срез
+      ctx.globalAlpha = 0.6;
+      ctx.fillStyle = t.color;
+      ctx.fillRect(-u * 0.08, -u * 0.30, u * 0.16, u * 0.035);
+      ctx.globalAlpha = 1;
+      ctx.restore();
+
+      // Опорные колёса
+      ctx.fillStyle = t.color;
+      ctx.globalAlpha = 0.55;
+      Draw.circle(ctx, -u * 0.21, u * 0.20, u * 0.045); ctx.fill();
+      Draw.circle(ctx, u * 0.21, u * 0.20, u * 0.045); ctx.fill();
+      ctx.globalAlpha = 1;
+    },
+
+    /* Лазер: узкая стойка с линзой и разрядником сверху */
+    laser: function (ctx, u, k, t, opts, time) {
+      ctx.lineWidth = Math.max(1, k);
+      var charge = 0.5 + 0.5 * Math.sin(time * 6);
+
+      // Стойка
+      Units.body(ctx, t, opts, u * 0.34, u * 0.44, u * 0.09, u * 0.06);
+
+      // Излучатель
+      ctx.fillStyle = opts.hurt ? '#2A323C' : t.fill;
+      ctx.strokeStyle = t.color;
+      Draw.poly(ctx, [
+        [-u * 0.13, -u * 0.16], [u * 0.13, -u * 0.16],
+        [u * 0.06, -u * 0.34], [-u * 0.06, -u * 0.34]
+      ]);
+      ctx.fill(); ctx.stroke();
+
+      // Линза копит заряд
+      ctx.fillStyle = t.color;
+      ctx.globalAlpha = 0.25 + 0.35 * charge;
+      Draw.circle(ctx, 0, -u * 0.31, u * 0.055 + u * 0.015 * charge);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      Draw.circle(ctx, 0, -u * 0.31, u * 0.025);
+      ctx.fill();
+
+      // Рёбра охлаждения
+      ctx.globalAlpha = 0.45;
+      for (var i = -1; i <= 1; i++) {
+        ctx.fillRect(-u * 0.17 + (i + 1) * u * 0.115, u * 0.02, u * 0.045, u * 0.14);
+      }
+      ctx.globalAlpha = 1;
+    },
+
+    /* Ремонтник: корпус с манипулятором и вращающимся ключом */
+    repair: function (ctx, u, k, t, opts, time) {
+      ctx.lineWidth = Math.max(1, k);
+      Units.body(ctx, t, opts, u * 0.46, u * 0.42, u * 0.13, u * 0.04);
+
+      // Манипулятор описывает круг — видно, что юнит работает
+      var a = time * 1.4;
+      ctx.strokeStyle = t.color;
+      ctx.globalAlpha = 0.7;
+      ctx.lineWidth = Math.max(1, 1.6 * k);
+      ctx.beginPath();
+      ctx.moveTo(0, u * 0.02);
+      ctx.lineTo(Math.cos(a) * u * 0.22, u * 0.02 + Math.sin(a) * u * 0.22);
+      ctx.stroke();
+      ctx.fillStyle = t.color;
+      Draw.circle(ctx, Math.cos(a) * u * 0.22, u * 0.02 + Math.sin(a) * u * 0.22, u * 0.035);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+
+      // Крест ремонта в центре
+      ctx.lineWidth = Math.max(1, 1.5 * k);
+      ctx.beginPath();
+      ctx.moveTo(0, -u * 0.07); ctx.lineTo(0, u * 0.11);
+      ctx.moveTo(-u * 0.09, u * 0.02); ctx.lineTo(u * 0.09, u * 0.02);
+      ctx.stroke();
     },
 
     /* Мина: диск с шипами и мигающим взрывателем */
