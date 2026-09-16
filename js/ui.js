@@ -115,11 +115,11 @@ var UI = {
   refreshMenu: function () {
     var d = Storage.data;
     var name = TG.userName();
-    var note = 'открыто уровней: ' + Math.min(d.maxLevel, 10) + ' из 10';
-    if (d.campaignDone) note = 'кампания пройдена';
+    var note = 'Открыто уровней: ' + Math.min(d.maxLevel, 10) + ' из 10';
+    if (d.campaignDone) note = 'Кампания пройдена';
     if (d.endlessBest) note += ' · рекорд: ' + d.endlessBest + ' волн';
     if (!Storage.available) note += ' · прогресс не сохраняется';
-    if (name) note = name + ', ' + note;
+    if (name) note = name + ', ' + note.charAt(0).toLowerCase() + note.slice(1);
     this.el.menuNote.textContent = note;
     this.el.btnEndless.hidden = !d.campaignDone;
   },
@@ -150,7 +150,7 @@ var UI = {
         nm.textContent = lvl.name;
         var sub = document.createElement('div');
         sub.className = 'level-sub';
-        sub.textContent = unlockedLevel ? lvl.hint || '10 волн' : 'заблокирован';
+        sub.textContent = unlockedLevel ? lvl.hint || '10 волн' : 'Заблокирован';
         meta.appendChild(nm); meta.appendChild(sub);
 
         var st = document.createElement('div');
@@ -324,7 +324,7 @@ var UI = {
     if (game.over || game.phase !== 'prep') { b.classList.add('hidden'); return; }
     b.classList.remove('hidden');
     var secs = Math.max(0, Math.ceil(game.prepT));
-    var text = 'волна ' + (game.waveIndex + 1) + ' через ' + secs + ' с';
+    var text = 'Волна ' + (game.waveIndex + 1) + ' через ' + secs + ' с';
     if (text === this._lastBanner) return;    // не дёргаем DOM каждый кадр
     this._lastBanner = text;
     this.el.bannerText.textContent = text;
@@ -346,7 +346,7 @@ var UI = {
 
     m.innerHTML = '';
     var sell = document.createElement('button');
-    sell.innerHTML = '<span>продать</span><span class="price">+' + Units.sellPrice(unit) + '</span>';
+    sell.innerHTML = '<span>Продать</span><span class="price">+' + Units.sellPrice(unit) + '</span>';
     sell.addEventListener('click', function (e) { e.stopPropagation(); Game.sellUnit(unit); });
     m.appendChild(sell);
 
@@ -355,11 +355,11 @@ var UI = {
       var cost = Units.upgradeCost(unit);
       var afford = game.sparks >= cost;
       up.className = afford ? '' : 'disabled';
-      up.innerHTML = '<span>улучшить</span><span class="price">' + cost + '</span>';
+      up.innerHTML = '<span>Улучшить</span><span class="price">' + cost + '</span>';
       up.addEventListener('click', function (e) { e.stopPropagation(); Game.upgradeUnit(unit); });
     } else {
       up.className = 'disabled';
-      up.innerHTML = '<span>улучшен</span><span class="price">—</span>';
+      up.innerHTML = '<span>Улучшен</span><span class="price">—</span>';
     }
     m.appendChild(up);
 
@@ -411,8 +411,8 @@ var UI = {
   showResult: function (game, won, stars) {
     var last = !game.endless && game.levelId >= LEVELS.length;
     this.el.resultTitle.textContent = won
-      ? (last ? 'кампания пройдена' : 'уровень пройден')
-      : 'рубеж прорван';
+      ? (last ? 'Кампания пройдена' : 'Уровень пройден')
+      : 'Рубеж прорван';
 
     this.el.resultStars.innerHTML = '';
     if (won && !game.endless) {
@@ -424,12 +424,12 @@ var UI = {
     }
 
     var lines = [
-      ['убито врагов', game.kills],
-      ['собрано искр', game.collected],
-      ['волн пройдено', game.endless ? game.waveIndex : Math.min(game.waveIndex, game.level.waves.length)],
-      ['жизней осталось', Math.max(0, game.lives)]
+      ['Убито врагов', game.kills],
+      ['Собрано искр', game.collected],
+      ['Волн пройдено', game.endless ? game.waveIndex : Math.min(game.waveIndex, game.level.waves.length)],
+      ['Жизней осталось', Math.max(0, game.lives)]
     ];
-    if (last && won) lines.push(['всего уровней пройдено', Storage.data.stats.levels]);
+    if (last && won) lines.push(['Всего уровней пройдено', Storage.data.stats.levels]);
     var html = '';
     for (var j = 0; j < lines.length; j++) {
       html += '<div class="line"><span>' + lines[j][0] + '</span><b>' + lines[j][1] + '</b></div>';
@@ -438,16 +438,16 @@ var UI = {
 
     var next = document.getElementById('btn-result-next');
     if (game.endless) {
-      next.textContent = 'в меню';
+      next.textContent = 'В меню';
       next.dataset.act = 'menu';
     } else if (!won) {
-      next.textContent = 'ещё раз';
+      next.textContent = 'Ещё раз';
       next.dataset.act = 'retry';
     } else if (last) {
-      next.textContent = 'бесконечные волны';
+      next.textContent = 'Бесконечные волны';
       next.dataset.act = 'endless';
     } else {
-      next.textContent = 'дальше';
+      next.textContent = 'Дальше';
       next.dataset.act = 'next';
     }
 
@@ -456,9 +456,9 @@ var UI = {
 
   /* ---------------- Обучение: три шага при первом запуске ---------------- */
   TUT: [
-    { title: 'поставь защитника', text: 'выбери карточку внизу и коснись свободной клетки. маяк приносит искры, стрелок бьёт вверх по своей колонке.' },
-    { title: 'собери искру', text: 'искры падают с маяков и убитых врагов. коснись искры, пока она не погасла — на неё покупаются новые защитники.' },
-    { title: 'останови врага', text: 'враги идут сверху вниз. если враг пересечёт красный рубеж внизу — потеряешь жизнь. их всего три.' }
+    { title: 'Поставь защитника', text: 'Выбери карточку внизу и коснись свободной клетки. Маяк приносит искры, стрелок бьёт вверх по своей колонке.' },
+    { title: 'Собери искру', text: 'Маяки роняют искры — коснись монеты, чтобы забрать её быстрее. За убитых врагов и зачищенные волны искры начисляются сами.' },
+    { title: 'Останови врага', text: 'Враги идут сверху вниз. Если враг пересечёт красный рубеж внизу — потеряешь жизнь. Их всего три.' }
   ],
 
   startTutorial: function () {
@@ -470,11 +470,11 @@ var UI = {
 
   renderTutorial: function () {
     var s = this.TUT[this.tutStep];
-    this.el.tutStep.textContent = 'шаг ' + (this.tutStep + 1) + ' из 3';
+    this.el.tutStep.textContent = 'Шаг ' + (this.tutStep + 1) + ' из 3';
     this.el.tutTitle.textContent = s.title;
     this.el.tutText.textContent = s.text;
     document.getElementById('tut-next').textContent =
-      this.tutStep === this.TUT.length - 1 ? 'в бой' : 'дальше';
+      this.tutStep === this.TUT.length - 1 ? 'В бой' : 'Дальше';
   },
 
   tutorialNext: function () {

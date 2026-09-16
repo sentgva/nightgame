@@ -82,7 +82,7 @@ var Main = {
         Game.kills + ' врагов остановлено';
     }
     var ok = TG.share(text);
-    if (!ok) UI.toast('текст скопирован');
+    if (!ok) UI.toast('Текст скопирован');
   }
 };
 

@@ -1,37 +1,37 @@
 /* enemies.js — враги: параметры, особенности, отрисовка.
-   Враг почти сливается с фоном поля: его выдают два красных глаза.
+   Враг почти сливается с фоном поля: его выдают силуэт и красные глаза.
    Как только враг станет ярче защитника — композиция сломается. */
 
 /* speed — клеток в секунду, atkRate — ударов в секунду */
 var ENEMY_TYPES = {
   walker: {
-    id: 'walker', name: 'бродяга',
+    id: 'walker', name: 'Бродяга',
     hp: 100, speed: 0.18, damage: 20, atkRate: 1.0,
     scale: 1.0, spark: 25, sparkChance: 0.6
   },
   runner: {
-    id: 'runner', name: 'бегун',
+    id: 'runner', name: 'Бегун',
     hp: 60, speed: 0.38, damage: 12, atkRate: 1.4,
     scale: 0.8, eyeTight: true, spark: 20, sparkChance: 0.6
   },
   armored: {
-    id: 'armored', name: 'броненосец',
+    id: 'armored', name: 'Броненосец',
     hp: 400, armor: 200, speed: 0.11, damage: 30, atkRate: 0.8,
     scale: 1.1, spark: 40, sparkChance: 0.7
   },
   jumper: {
-    id: 'jumper', name: 'прыгун',
+    id: 'jumper', name: 'Прыгун',
     hp: 120, speed: 0.23, damage: 20, atkRate: 1.0,
     jumps: 1, scale: 1.0, spark: 25, sparkChance: 0.6
   },
   spitter: {
-    id: 'spitter', name: 'плевун',
+    id: 'spitter', name: 'Плевун',
     hp: 150, speed: 0.15, damage: 12, atkRate: 0.8, rangedRange: 2,
     scale: 1.0, spark: 30, sparkChance: 0.6
   },
   boss: {
-    id: 'boss', name: 'колосс',
-    hp: 3000, speed: 0.08, damage: 60, atkRate: 0.7,
+    id: 'boss', name: 'Колосс',
+    hp: 1800, speed: 0.12, damage: 70, atkRate: 0.8,
     width: 2, scale: 1.5, boss: true, spark: 300, sparkChance: 1
   }
 };
@@ -55,7 +55,8 @@ var Enemies = {
       speed: t.speed,
       slowT: 0,                   // остаток заморозки
       atkCd: 0,
-      target: null,               // атакуемый защитник
+      attacking: 0,               // подсветка момента удара
+      target: null,
       jumpsLeft: t.jumps || 0,
       jumpT: 0,                   // прогресс прыжка 0..1
       jumpFrom: 0, jumpTo: 0,
@@ -90,70 +91,42 @@ var Enemies = {
     return cell * 0.6 * (enemy.def.scale || 1);
   },
 
-  /* ---------- Отрисовка ---------- */
+  /* ======================================================================
+     ОТРИСОВКА
+     ====================================================================== */
   draw: function (ctx, enemy, cell, time) {
     var k = cell / 64;
     var x = Enemies.centerX(enemy, cell);
-    var size = Enemies.bodySize(enemy, cell);
-    var w = size * (enemy.width > 1 ? 1.6 : 1);
-    var h = size;
     var y = enemy.y;
+    var sc = enemy.def.scale || 1;
 
     // Дуга прыжка — короткий подъём над полем
     if (enemy.jumpT > 0) y -= Math.sin(enemy.jumpT * Math.PI) * cell * 0.35;
 
+    // Шаг: тело чуть покачивается и кренится
+    var moving = enemy.jumpT > 0 || !enemy.attacking;
+    var gait = Math.sin(time * 5.5 * (enemy.slowT > 0 ? 0.5 : 1) + enemy.wobble);
+    var bob = moving ? gait * cell * 0.014 : 0;
+    var lean = moving ? gait * 0.05 : 0;
+
     ctx.save();
+    ctx.translate(x, y + bob);
+    ctx.scale(sc, sc);
+    if (lean) ctx.rotate(lean);
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
     if (enemy.spawnT < 1) ctx.globalAlpha = enemy.spawnT;
 
-    var bx = x - w / 2, by = y - h / 2, r = cell * 0.13;
-
-    // Голубая обводка, пока враг заморожен
-    if (enemy.slowT > 0) Draw.glowRect(ctx, bx, by, w, h, r, PAL.ice, 0.5, 2 * k);
-
-    ctx.fillStyle = enemy.hurt > 0 ? '#D8DEE6' : (enemy.armor > 0 ? PAL.fillArmor : PAL.fillEnemy);
-    Draw.roundRect(ctx, bx, by, w, h, r);
-    ctx.fill();
-    ctx.lineWidth = Math.max(1, k);
-    ctx.strokeStyle = enemy.slowT > 0 ? PAL.ice : PAL.gridLine;
-    ctx.stroke();
-
-    // Пластина брони поверх верхней половины тела
-    if (enemy.armor > 0) {
-      ctx.fillStyle = '#39434F';
-      ctx.globalAlpha = (enemy.spawnT < 1 ? enemy.spawnT : 1) * 0.85;
-      Draw.roundRect(ctx, bx + w * 0.08, by + h * 0.10, w * 0.84, h * 0.34, r * 0.5);
-      ctx.fill();
-      ctx.globalAlpha = enemy.spawnT < 1 ? enemy.spawnT : 1;
-    }
-
-    // Глаза — главный опознавательный признак
-    var eyeR = 1.3 * k * (enemy.def.scale || 1);
-    var gap = w * (enemy.def.eyeTight ? 0.20 : 0.26);
-    var eyeY = y - h * 0.08;
-    ctx.fillStyle = PAL.enemy;
-    if (enemy.def.boss) {
-      // У босса четыре глаза
-      Draw.circle(ctx, x - gap * 1.35, eyeY, eyeR * 1.3); ctx.fill();
-      Draw.circle(ctx, x - gap * 0.45, eyeY, eyeR * 1.3); ctx.fill();
-      Draw.circle(ctx, x + gap * 0.45, eyeY, eyeR * 1.3); ctx.fill();
-      Draw.circle(ctx, x + gap * 1.35, eyeY, eyeR * 1.3); ctx.fill();
-    } else {
-      Draw.circle(ctx, x - gap, eyeY, eyeR); ctx.fill();
-      Draw.circle(ctx, x + gap, eyeY, eyeR); ctx.fill();
-    }
-
-    // Рот — тонкая полоса под глазами
-    ctx.globalAlpha = (enemy.spawnT < 1 ? enemy.spawnT : 1) * 0.5;
-    ctx.fillStyle = PAL.enemy;
-    ctx.fillRect(x - w * 0.18, y + h * 0.20, w * 0.36, Math.max(1, k));
-    ctx.globalAlpha = enemy.spawnT < 1 ? enemy.spawnT : 1;
+    var shape = Enemies.shapes[enemy.type] || Enemies.shapes.walker;
+    shape(ctx, cell, k, enemy, time, gait);
 
     ctx.restore();
 
     // Полоска HP — ровно по ширине тела, только после первого урона
     if (enemy.damaged && !enemy.dead) {
+      var w = Enemies.bodySize(enemy, cell) * (enemy.width > 1 ? 1.7 : 1);
       var barH = Math.max(2, 3 * k);
-      var barY = y + h / 2 + 3 * k;
+      var barY = y + Enemies.bodySize(enemy, cell) * 0.62;
       var total = enemy.maxHp + enemy.maxArmor;
       var left = enemy.hp + enemy.armor;
       ctx.fillStyle = PAL.gridLine;
@@ -163,13 +136,234 @@ var Enemies = {
     }
   },
 
-  /* Иконка врага для обучающего оверлея и меню — не используется в поле */
-  drawIcon: function (ctx, x, y, cell, typeId) {
-    var fake = Enemies.create(typeId, 0, {});
-    fake.y = y; fake.col = 0; fake.spawnT = 1;
-    var savedCenter = Enemies.centerX;
-    Enemies.centerX = function () { return x; };
-    Enemies.draw(ctx, fake, cell, 0);
-    Enemies.centerX = savedCenter;
+  /* Корпус врага: тёмная заливка, обводка цветом линий сетки или льда */
+  shell: function (ctx, e, k, drawPath) {
+    ctx.fillStyle = e.hurt > 0 ? '#D8DEE6' : (e.armor > 0 ? PAL.fillArmor : PAL.fillEnemy);
+    ctx.strokeStyle = e.slowT > 0 ? PAL.ice : PAL.gridLine;
+    ctx.lineWidth = Math.max(1, k);
+    drawPath();
+    ctx.fill();
+    ctx.stroke();
+  },
+
+  /* Пара глаз — главный опознавательный признак */
+  eyes: function (ctx, u, k, e, gapFactor, ey, r) {
+    ctx.fillStyle = PAL.enemy;
+    var g = u * gapFactor;
+    Draw.circle(ctx, -g, ey, r); ctx.fill();
+    Draw.circle(ctx, g, ey, r); ctx.fill();
+  },
+
+  mouth: function (ctx, u, k, w, my) {
+    ctx.save();
+    ctx.globalAlpha *= 0.5;
+    ctx.fillStyle = PAL.enemy;
+    ctx.fillRect(-w / 2, my, w, Math.max(1, k));
+    ctx.restore();
+  },
+
+  shapes: {
+    /* Бродяга: сутулый силуэт с покатыми плечами и висящими руками */
+    walker: function (ctx, u, k, e, time, gait) {
+      Enemies.shell(ctx, e, k, function () {
+        Draw.poly(ctx, [
+          [-u * 0.20, -u * 0.26], [u * 0.20, -u * 0.26],
+          [u * 0.28, -u * 0.10], [u * 0.28, u * 0.26],
+          [-u * 0.28, u * 0.26], [-u * 0.28, -u * 0.10]
+        ]);
+      });
+
+      // Руки качаются в противофазе
+      ctx.strokeStyle = PAL.gridLine;
+      ctx.lineWidth = Math.max(1, 1.6 * k);
+      ctx.beginPath();
+      ctx.moveTo(-u * 0.30, -u * 0.04); ctx.lineTo(-u * 0.32, u * 0.14 + gait * u * 0.03);
+      ctx.moveTo(u * 0.30, -u * 0.04); ctx.lineTo(u * 0.32, u * 0.14 - gait * u * 0.03);
+      ctx.stroke();
+
+      Enemies.eyes(ctx, u, k, e, 0.115, -u * 0.09, 1.4 * k);
+      Enemies.mouth(ctx, u, k, u * 0.20, u * 0.09);
+    },
+
+    /* Бегун: узкое тело, наклон вперёд и штрихи скорости позади */
+    runner: function (ctx, u, k, e, time, gait) {
+      ctx.rotate(0.14);   // постоянный наклон по ходу движения
+
+      Enemies.shell(ctx, e, k, function () {
+        Draw.roundRect(ctx, -u * 0.20, -u * 0.30, u * 0.40, u * 0.58, u * 0.13);
+      });
+
+      // Штрихи скорости за спиной
+      ctx.save();
+      ctx.globalAlpha *= 0.35;
+      ctx.strokeStyle = PAL.enemy;
+      ctx.lineWidth = Math.max(1, k);
+      ctx.beginPath();
+      ctx.moveTo(-u * 0.12, -u * 0.40); ctx.lineTo(-u * 0.12, -u * 0.50);
+      ctx.moveTo(u * 0.06, -u * 0.38); ctx.lineTo(u * 0.06, -u * 0.46);
+      ctx.stroke();
+      ctx.restore();
+
+      // Ноги в беге
+      ctx.strokeStyle = PAL.gridLine;
+      ctx.lineWidth = Math.max(1, 1.6 * k);
+      ctx.beginPath();
+      ctx.moveTo(-u * 0.07, u * 0.27); ctx.lineTo(-u * 0.10 + gait * u * 0.06, u * 0.38);
+      ctx.moveTo(u * 0.07, u * 0.27); ctx.lineTo(u * 0.10 - gait * u * 0.06, u * 0.38);
+      ctx.stroke();
+
+      Enemies.eyes(ctx, u, k, e, 0.075, -u * 0.13, 1.3 * k);
+    },
+
+    /* Броненосец: широкий корпус под съёмной пластиной с заклёпками */
+    armored: function (ctx, u, k, e, time, gait) {
+      Enemies.shell(ctx, e, k, function () {
+        Draw.roundRect(ctx, -u * 0.32, -u * 0.28, u * 0.64, u * 0.56, u * 0.10);
+      });
+
+      if (e.armor > 0) {
+        // Пластина поверх верхней половины
+        ctx.fillStyle = '#39434F';
+        ctx.strokeStyle = '#4A5563';
+        ctx.lineWidth = Math.max(1, k);
+        Draw.poly(ctx, [
+          [-u * 0.30, -u * 0.26], [u * 0.30, -u * 0.26],
+          [u * 0.26, u * 0.02], [-u * 0.26, u * 0.02]
+        ]);
+        ctx.fill(); ctx.stroke();
+
+        // Заклёпки
+        ctx.fillStyle = '#5A6573';
+        Draw.circle(ctx, -u * 0.18, -u * 0.19, u * 0.022); ctx.fill();
+        Draw.circle(ctx, 0, -u * 0.19, u * 0.022); ctx.fill();
+        Draw.circle(ctx, u * 0.18, -u * 0.19, u * 0.022); ctx.fill();
+
+        // Глаза светятся из-под пластины
+        Enemies.eyes(ctx, u, k, e, 0.13, u * 0.13, 1.4 * k);
+      } else {
+        // Броня сбита: остались сколы на корпусе
+        ctx.save();
+        ctx.globalAlpha *= 0.5;
+        ctx.strokeStyle = '#4A5563';
+        ctx.lineWidth = Math.max(1, k);
+        ctx.beginPath();
+        ctx.moveTo(-u * 0.26, -u * 0.20); ctx.lineTo(-u * 0.14, -u * 0.24);
+        ctx.moveTo(u * 0.14, -u * 0.24); ctx.lineTo(u * 0.26, -u * 0.20);
+        ctx.stroke();
+        ctx.restore();
+        Enemies.eyes(ctx, u, k, e, 0.13, -u * 0.06, 1.5 * k);
+        Enemies.mouth(ctx, u, k, u * 0.26, u * 0.12);
+      }
+    },
+
+    /* Прыгун: компактное тело на длинных согнутых ногах */
+    jumper: function (ctx, u, k, e, time, gait) {
+      var crouch = e.jumpT > 0 ? 1 : 0;
+
+      // Ноги: в прыжке поджаты, при ходьбе шагают
+      ctx.strokeStyle = PAL.gridLine;
+      ctx.lineWidth = Math.max(1, 1.8 * k);
+      ctx.beginPath();
+      if (crouch) {
+        ctx.moveTo(-u * 0.10, u * 0.14); ctx.lineTo(-u * 0.17, u * 0.05);
+        ctx.moveTo(u * 0.10, u * 0.14); ctx.lineTo(u * 0.17, u * 0.05);
+      } else {
+        ctx.moveTo(-u * 0.10, u * 0.14); ctx.lineTo(-u * 0.13 + gait * u * 0.05, u * 0.33);
+        ctx.moveTo(u * 0.10, u * 0.14); ctx.lineTo(u * 0.13 - gait * u * 0.05, u * 0.33);
+      }
+      ctx.stroke();
+
+      Enemies.shell(ctx, e, k, function () {
+        Draw.roundRect(ctx, -u * 0.23, -u * 0.30, u * 0.46, u * 0.46, u * 0.16);
+      });
+
+      // Гребень на макушке
+      ctx.strokeStyle = PAL.enemy;
+      ctx.save();
+      ctx.globalAlpha *= 0.55;
+      ctx.lineWidth = Math.max(1, 1.2 * k);
+      ctx.beginPath();
+      ctx.moveTo(0, -u * 0.30); ctx.lineTo(0, -u * 0.39);
+      ctx.stroke();
+      ctx.restore();
+
+      Enemies.eyes(ctx, u, k, e, 0.105, -u * 0.13, 1.4 * k);
+      Enemies.mouth(ctx, u, k, u * 0.18, u * 0.02);
+    },
+
+    /* Плевун: тело с соплом снизу, оно вспыхивает в момент выстрела */
+    spitter: function (ctx, u, k, e, time, gait) {
+      Enemies.shell(ctx, e, k, function () {
+        Draw.poly(ctx, [
+          [-u * 0.26, -u * 0.24], [u * 0.26, -u * 0.24],
+          [u * 0.22, u * 0.14], [-u * 0.22, u * 0.14]
+        ]);
+      });
+
+      // Сопло
+      ctx.fillStyle = e.hurt > 0 ? '#D8DEE6' : PAL.fillEnemy;
+      ctx.strokeStyle = e.slowT > 0 ? PAL.ice : PAL.gridLine;
+      ctx.lineWidth = Math.max(1, k);
+      Draw.poly(ctx, [
+        [-u * 0.09, u * 0.14], [u * 0.09, u * 0.14],
+        [u * 0.06, u * 0.30], [-u * 0.06, u * 0.30]
+      ]);
+      ctx.fill(); ctx.stroke();
+
+      // Свечение при плевке
+      if (e.attacking > 0) {
+        ctx.save();
+        ctx.globalAlpha *= Math.min(1, e.attacking);
+        ctx.fillStyle = PAL.enemy;
+        Draw.circle(ctx, 0, u * 0.30, u * 0.05);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      Enemies.eyes(ctx, u, k, e, 0.125, -u * 0.11, 1.4 * k);
+    },
+
+    /* Колосс: две колонки в ширину, рога и четыре глаза */
+    boss: function (ctx, u, k, e, time, gait) {
+      // Рога
+      ctx.strokeStyle = PAL.enemy;
+      ctx.save();
+      ctx.globalAlpha *= 0.7;
+      ctx.lineWidth = Math.max(1, 1.8 * k);
+      ctx.beginPath();
+      ctx.moveTo(-u * 0.34, -u * 0.30); ctx.lineTo(-u * 0.42, -u * 0.46);
+      ctx.moveTo(u * 0.34, -u * 0.30); ctx.lineTo(u * 0.42, -u * 0.46);
+      ctx.stroke();
+      ctx.restore();
+
+      Enemies.shell(ctx, e, k, function () {
+        Draw.poly(ctx, [
+          [-u * 0.38, -u * 0.30], [u * 0.38, -u * 0.30],
+          [u * 0.50, -u * 0.06], [u * 0.44, u * 0.30],
+          [-u * 0.44, u * 0.30], [-u * 0.50, -u * 0.06]
+        ]);
+      });
+
+      // Грудные плиты
+      ctx.save();
+      ctx.globalAlpha *= 0.35;
+      ctx.strokeStyle = '#4A5563';
+      ctx.lineWidth = Math.max(1, k);
+      ctx.beginPath();
+      ctx.moveTo(-u * 0.30, u * 0.10); ctx.lineTo(u * 0.30, u * 0.10);
+      ctx.moveTo(-u * 0.24, u * 0.20); ctx.lineTo(u * 0.24, u * 0.20);
+      ctx.stroke();
+      ctx.restore();
+
+      // Четыре глаза в один ряд
+      ctx.fillStyle = PAL.enemy;
+      var ey = -u * 0.13, r = 1.8 * k;
+      Draw.circle(ctx, -u * 0.27, ey, r); ctx.fill();
+      Draw.circle(ctx, -u * 0.09, ey, r); ctx.fill();
+      Draw.circle(ctx, u * 0.09, ey, r); ctx.fill();
+      Draw.circle(ctx, u * 0.27, ey, r); ctx.fill();
+
+      Enemies.mouth(ctx, u, k, u * 0.44, u * 0.01);
+    }
   }
 };

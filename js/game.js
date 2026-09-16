@@ -13,6 +13,16 @@ var CONFIG = {
   sparkLife: 8,            // сколько искра лежит на поле, сек
   sparkBlink: 2,           // за сколько секунд до исчезновения начинает мигать
   sparkBob: 3,             // амплитуда покачивания искры, px
+
+  /* --- экономика ---
+     Три источника дохода вместо одного: маяки (искры надо подбирать),
+     убитые враги (падают в счётчик сразу) и награда за зачищенную волну.
+     Базовый ручеёк не даёт застрять навсегда, если поле снесли под ноль. */
+  trickle: 0.5,            // базовый доход, искр в секунду
+  killRewardMul: 0.40,     // множитель наград с врагов
+  waveBonusBase: 12,       // награда за зачищенную волну
+  waveBonusPerWave: 3,     // и надбавка за её номер
+  autoCollect: 1.2,        // за сколько секунд до угасания искра улетает в счётчик сама
   placeDebounce: 150,      // защита от двойного тапа, мс
   bulletSpeed: 9,          // скорость снаряда защитника, клеток/сек
   spitSpeed: 4.5,          // скорость плевка врага, клеток/сек
@@ -35,7 +45,8 @@ var Game = {
   spawnQueue: [],
   kills: 0, collected: 0,
 
-  enemies: [], projectiles: [], particles: [], drops: [], flights: [],
+  enemies: [], projectiles: [], particles: [], drops: [], flights: [], popups: [],
+  trickleAcc: 0,
   cardCd: {},
   selected: null, lastPlaceTs: 0, menuUnit: null,
   shake: 0, edgeFlash: 0,
@@ -93,6 +104,8 @@ var Game = {
     this.enemies.length = 0;
     this.drops.length = 0;
     this.flights.length = 0;
+    this.popups.length = 0;
+    this.trickleAcc = 0;
     this.projectiles.length = 0;
     this.particles.length = 0;
     this.spawnQueue.length = 0;
@@ -179,6 +192,8 @@ var Game = {
     this.stepDrops(dt);
     this.stepParticles(dt);
     this.stepFlights(dt);
+    this.stepPopups(dt);
+    this.stepTrickle(dt);
     this.stepWaves(dt);
 
     UI.tickCards(this);
@@ -303,8 +318,10 @@ var Game = {
         continue;
       }
 
+      if (e.attacking > 0) e.attacking = Math.max(0, e.attacking - dt);
       var slowMul = e.slowT > 0 ? 0.6 : 1;
       var blocker = this.findBlockingUnit(e);
+      e.blocked = !!blocker;
 
       // Плевун останавливается за две клетки и бьёт оттуда.
       // Но только войдя в поле: иначе он замирал бы за верхней границей,
@@ -313,7 +330,8 @@ var Game = {
         var far = this.findUnitAhead(e, e.def.rangedRange);
         if (far) {
           e.atkCd -= dt;
-          if (e.atkCd <= 0) { e.atkCd = 1 / e.def.atkRate; this.spit(e, far); }
+          e.blocked = true;
+          if (e.atkCd <= 0) { e.atkCd = 1 / e.def.atkRate; e.attacking = 0.3; this.spit(e, far); }
           continue;
         }
       }
@@ -331,6 +349,7 @@ var Game = {
         e.atkCd -= dt;
         if (e.atkCd <= 0) {
           e.atkCd = 1 / e.def.atkRate;
+          e.attacking = 0.3;
           this.damageUnit(blocker, e.def.damage);
         }
         continue;
@@ -414,14 +433,9 @@ var Game = {
     var x = Enemies.centerX(e, Grid.cell);
     this.spawnParticles(x, e.y, e.def.boss ? 16 : 7, PAL.enemy, e.def.boss ? 260 : 170, 0.3, false);
 
-    // Награда искрами
-    if (e.def.boss) {
-      for (var i = 0; i < 3; i++) {
-        this.dropSpark(x + (i - 1) * Grid.cell * 0.5, e.y, Math.round(e.def.spark / 3));
-      }
-    } else if (Math.random() < e.def.sparkChance) {
-      this.dropSpark(x, e.y, e.def.spark);
-    }
+    // Награда идёт в счётчик сразу: подбирать нужно только искры маяков,
+    // иначе в плотной волне половина дохода просто истлевала бы на поле.
+    this.gain(e.def.spark * CONFIG.killRewardMul, x, e.y);
   },
 
   loseLife: function () {
@@ -523,6 +537,43 @@ var Game = {
     }
   },
 
+  /* ---------------- Экономика ----------------
+     Единая точка прихода искр: и счётчик, и всплывающее число над полем. */
+  gain: function (amount, x, y, silent) {
+    amount = Math.round(amount);
+    if (amount <= 0) return;
+    this.sparks += amount;
+    this.collected += amount;
+    if (!silent) {
+      this.popups.push({
+        x: Math.max(Grid.cell * 0.4, Math.min(Grid.w - Grid.cell * 0.4, x)),
+        y: y, t: 0, dur: 0.9, text: '+' + amount
+      });
+      UI.popSparks();
+    }
+    this.syncHud();
+  },
+
+  /* Базовый ручеёк: медленный, но не даёт партии зависнуть насмерть */
+  stepTrickle: function (dt) {
+    if (this.over) return;
+    this.trickleAcc += CONFIG.trickle * dt;
+    if (this.trickleAcc >= 1) {
+      var whole = Math.floor(this.trickleAcc);
+      this.trickleAcc -= whole;
+      this.sparks += whole;
+      this.collected += whole;
+      this.syncHud();
+    }
+  },
+
+  stepPopups: function (dt) {
+    for (var i = this.popups.length - 1; i >= 0; i--) {
+      this.popups[i].t += dt;
+      if (this.popups[i].t >= this.popups[i].dur) this.popups.splice(i, 1);
+    }
+  },
+
   /* ---------------- Искры на поле ---------------- */
   dropSpark: function (x, y, amount) {
     this.drops.push({
@@ -536,21 +587,21 @@ var Game = {
 
   stepDrops: function (dt) {
     for (var i = this.drops.length - 1; i >= 0; i--) {
-      this.drops[i].t -= dt;
-      if (this.drops[i].t <= 0) this.drops.splice(i, 1);
+      var d = this.drops[i];
+      d.t -= dt;
+      d.born = Math.min(1, (d.born || 0) + dt / 0.25);
+      // Не подобранная искра не пропадает, а сама улетает в счётчик:
+      // тап ускоряет доход, но зевок больше не штрафует.
+      if (d.t <= CONFIG.autoCollect) this.collectSpark(i, true);
     }
   },
 
-  collectSpark: function (idx) {
+  collectSpark: function (idx, silent) {
     var d = this.drops[idx];
-    this.sparks += d.amount;
-    this.collected += d.amount;
     this.flights.push({ x0: d.x, y0: d.y, t: 0, dur: 0.4, amount: d.amount });
     this.drops.splice(idx, 1);
-    Sound.play('pick');
-    TG.haptic('light');
-    this.syncHud();
-    UI.popSparks();
+    if (!silent) { Sound.play('pick'); TG.haptic('light'); }
+    this.gain(d.amount, d.x, d.y);
   },
 
   stepFlights: function (dt) {
@@ -596,8 +647,12 @@ var Game = {
   },
 
   waveCleared: function () {
+    // Награда за зачищенную волну — растёт вместе с её номером
+    var bonus = CONFIG.waveBonusBase + CONFIG.waveBonusPerWave * this.waveIndex;
+    this.gain(bonus, Grid.w / 2, Grid.h * 0.42);
     this.waveIndex++;
     if (this.endless) {
+      this.level.hpScale = 1 + this.waveIndex * 0.07;   // давление растёт прочностью
       Storage.setEndlessBest(this.waveIndex);
       this.phase = 'prep';
       this.prepT = CONFIG.prepTime;
@@ -618,7 +673,11 @@ var Game = {
     } else {
       col = Math.max(0, Math.min(Grid.cols - width, spec.col));
     }
-    var e = Enemies.create(spec.type, col, { hpMul: spec.hpMul });
+    // Босс уже усилен своим hpMul в конфиге волны — шкалу уровня к нему
+    // не применяем, иначе финальная волна превращается в долгий обстрел мешка.
+    var scale = ENEMY_TYPES[spec.type].boss ? 1 : (this.level.hpScale || 1);
+    var mul = (spec.hpMul || 1) * scale;
+    var e = Enemies.create(spec.type, col, { hpMul: mul });
     e.y = -Grid.cell * (0.5 + Math.random() * 0.3);
     this.enemies.push(e);
   },
@@ -713,7 +772,7 @@ var Game = {
     if (!typeId) return;
     var def = UNIT_TYPES[typeId];
 
-    if (!Grid.isFree(col, row)) { UI.toast('клетка занята'); return; }
+    if (!Grid.isFree(col, row)) { UI.toast('Клетка занята'); return; }
     if (this.sparks < def.cost) { UI.shakeCard(typeId); Sound.play('deny'); this.deselect(); return; }
 
     this.lastPlaceTs = now;
@@ -806,6 +865,7 @@ var Game = {
     this.drawProjectiles(ctx, k);
     this.drawParticles(ctx);
     this.drawFlights(ctx, k);
+    this.drawPopups(ctx, k);
     this.drawVignette(ctx, W, H, k);
     this.drawDefenseLine(ctx, W, H, k, cell);
 
@@ -884,13 +944,15 @@ var Game = {
     // Мины лежат «под» остальными объектами
     Grid.each(function (u, c, r) {
       if (u.type !== 'mine') return;
-      Units.draw(ctx, Grid.centerX(c), Grid.centerY(r), cell, u.type,
-        { level: u.level, flash: u.flash, hurt: u.hurt > 0, scale: Game.placeScale(u) });
+      Units.draw(ctx, Grid.centerX(c), Grid.centerY(r), cell, u.type, {
+        level: u.level, flash: u.flash, hurt: u.hurt > 0,
+        scale: Game.placeScale(u), time: Game.time
+      });
     });
     Grid.each(function (u, c, r) {
       if (u.type === 'mine') return;
       Units.draw(ctx, Grid.centerX(c), Grid.centerY(r), cell, u.type, {
-        level: u.level, flash: u.flash, hurt: u.hurt > 0,
+        level: u.level, flash: u.flash, hurt: u.hurt > 0, time: Game.time,
         hp: u.hp, maxHp: u.maxHp, scale: Game.placeScale(u)
       });
     });
@@ -949,24 +1011,65 @@ var Game = {
     ctx.restore();
   },
 
+  /* Искра на поле — единственное, что игрок должен замечать мгновенно,
+     поэтому она крупная, с пульсирующим ореолом и появляется с отскоком. */
   drawDrops: function (ctx, k) {
     ctx.save();
     for (var i = 0; i < this.drops.length; i++) {
       var d = this.drops[i];
       var bob = Math.sin(this.time * Math.PI + d.phase) * CONFIG.sparkBob * k;
+      var pulse = 0.5 + 0.5 * Math.sin(this.time * 3.4 + d.phase);
       var a = 1;
-      // За две секунды до исчезновения искра начинает мигать
-      if (d.t < CONFIG.sparkBlink) a = 0.35 + 0.65 * Math.abs(Math.sin(d.t * 9));
-      ctx.globalAlpha = a * 0.15;
+      if (d.t < CONFIG.sparkBlink) a = 0.45 + 0.55 * Math.abs(Math.sin(d.t * 9));
+
+      // Появление с отскоком
+      var born = d.born === undefined ? 1 : d.born;
+      var pop = born < 1
+        ? 0.4 + 0.6 * (1 + 2.2 * Math.pow(born - 1, 3) + 1.2 * Math.pow(born - 1, 2))
+        : 1;
+
+      ctx.save();
+      ctx.translate(d.x, d.y + bob);
+      ctx.scale(pop, pop);
+
+      // Внешний ореол — дышит
       ctx.fillStyle = PAL.spark;
-      Draw.circle(ctx, d.x, d.y + bob, 5 * k);
-      ctx.fill();
+      ctx.globalAlpha = a * (0.10 + 0.08 * pulse);
+      Draw.circle(ctx, 0, 0, (11 + 2 * pulse) * k); ctx.fill();
+      ctx.globalAlpha = a * 0.22;
+      Draw.circle(ctx, 0, 0, 8.5 * k); ctx.fill();
+
+      // Тело монеты
       ctx.globalAlpha = a;
-      Draw.circle(ctx, d.x, d.y + bob, 3 * k);
-      ctx.fill();
-      ctx.fillStyle = PAL.bgField;
-      Draw.circle(ctx, d.x, d.y + bob, 1 * k);
-      ctx.fill();
+      Draw.circle(ctx, 0, 0, 6 * k); ctx.fill();
+
+      // Тёмное кольцо и блик — чтобы читалась монетой, а не пятном
+      ctx.strokeStyle = PAL.bgDeep;
+      ctx.lineWidth = 1.4 * k;
+      Draw.circle(ctx, 0, 0, 3.2 * k); ctx.stroke();
+      ctx.globalAlpha = a * 0.8;
+      ctx.fillStyle = '#FFE0A8';
+      Draw.circle(ctx, -1.8 * k, -2.2 * k, 1.2 * k); ctx.fill();
+
+      ctx.restore();
+    }
+    ctx.restore();
+  },
+
+  /* Всплывающие числа прихода: видно, за что именно капнуло */
+  drawPopups: function (ctx, k) {
+    if (!this.popups.length) return;
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = '500 ' + Math.round(12 * k) +
+      'px -apple-system, "SF Pro Display", "Segoe UI", Roboto, sans-serif';
+    for (var i = 0; i < this.popups.length; i++) {
+      var p = this.popups[i];
+      var t = p.t / p.dur;
+      ctx.globalAlpha = t < 0.15 ? t / 0.15 : (1 - (t - 0.15) / 0.85);
+      ctx.fillStyle = PAL.spark;
+      ctx.fillText(p.text, p.x, p.y - 26 * k * t);
     }
     ctx.restore();
   },
