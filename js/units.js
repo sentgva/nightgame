@@ -154,6 +154,11 @@ var UNIT_TYPES = {
 var UNIT_ORDER = ['beacon', 'shooter', 'barrier', 'mine', 'freezer',
                   'shotgun', 'repeater', 'torch', 'magnet', 'fan'];
 
+/* Множитель основного параметра по ступеням: 1 — обычный, 2 — улучшенный,
+   3 — доступен только на Ледяной станции. */
+var TIER_MUL = [1, 1, 1.5, 2.1];
+var TIER_COST = [0, 2, 3.5];      // во столько раз от базовой цены стоит переход
+
 var Units = {
   /* Создание юнита на клетке */
   create: function (typeId, col, row) {
@@ -174,28 +179,66 @@ var Units = {
     };
   },
 
-  /* Параметр с учётом улучшения (+50% к основному) */
+  /* Параметр с учётом ступени улучшения */
   stat: function (unit, key) {
     var base = unit.def[key];
     if (base === undefined) return undefined;
-    if (unit.level > 1 && unit.def.upgradeKey === key) return base * 1.5;
+    if (unit.def.upgradeKey === key) return base * TIER_MUL[unit.level];
     return base;
   },
 
-  canUpgrade: function (unit) { return unit.level < 2; },
-  upgradeCost: function (unit) { return unit.def.cost * 2; },
+  canUpgrade: function (unit, maxTier) { return unit.level < (maxTier || 2); },
+
+  upgradeCost: function (unit) {
+    return Math.round(unit.def.cost * TIER_COST[unit.level]);
+  },
+
+  /* Возврат считаем от всего вложенного, включая улучшения */
   sellPrice: function (unit) {
-    var paid = unit.def.cost + (unit.level > 1 ? Units.upgradeCost(unit) : 0);
+    var paid = unit.def.cost;
+    for (var t = 1; t < unit.level; t++) paid += Math.round(unit.def.cost * TIER_COST[t]);
     return Math.floor(paid * CONFIG.sellRefund);
   },
 
   upgrade: function (unit) {
-    unit.level = 2;
+    unit.level = Math.min(3, unit.level + 1);
     if (unit.def.upgradeKey === 'hp') {
-      unit.maxHp = unit.def.hp * 1.5;
+      unit.maxHp = unit.def.hp * TIER_MUL[unit.level];
       unit.hp = unit.maxHp;
     }
     unit.spawnT = 0;
+  },
+
+  /* Характеристики юнита на заданной ступени — для справочника.
+     Возвращает [[подпись, значение, растёт ли с улучшением], ...] */
+  describe: function (def, level) {
+    var fake = { def: def, level: level };
+    var grows = function (key) { return def.upgradeKey === key; };
+    var lines = [];
+
+    if (def.damage) lines.push(['Урон', Math.round(Units.stat(fake, 'damage')), grows('damage')]);
+    if (def.fireRate) {
+      lines.push(['Темп', def.fireRate >= 1
+        ? def.fireRate.toFixed(1) + ' выстрела/с'
+        : 'раз в ' + (1 / def.fireRate).toFixed(1) + ' с', false]);
+    }
+    if (def.burst) lines.push(['Снарядов за раз', def.burst, false]);
+    if (def.spreadCols) lines.push(['Колонок', '3', false]);
+    if (def.range && !def.strip) lines.push(['Дальность', def.range + ' кл.', grows('range')]);
+    if (def.strip) lines.push(['Радиус', Math.round(Units.stat(fake, 'range')) + ' кл.', grows('range')]);
+    if (def.slow) lines.push(['Замедление', Math.round(def.slow * 100) + '% на ' + def.slowTime + ' с', false]);
+    if (def.boost) lines.push(['Усиление снарядов', '×' + Units.stat(fake, 'boost').toFixed(2), grows('boost')]);
+    if (def.produce) {
+      lines.push(['Доход', Math.round(Units.stat(fake, 'produce')) + ' искр раз в ' + def.interval + ' с', grows('produce')]);
+    }
+    if (def.radius) lines.push(['Взрыв', def.radius + ' кл. вокруг', false]);
+    lines.push(['Прочность', Math.round(def.hp * (grows('hp') ? TIER_MUL[level] : 1)), grows('hp')]);
+    lines.push(['Перезарядка карточки', def.cooldown + ' с', false]);
+    return lines;
+  },
+
+  tierCost: function (def, toLevel) {
+    return Math.round(def.cost * TIER_COST[toLevel - 1]);
   },
 
   /* ======================================================================
@@ -216,21 +259,13 @@ var Units = {
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
 
+    // Ступень 3 сидит на постаменте — он рисуется под корпусом
+    if (opts.level > 2) Units.tierBase(ctx, cell, k, t, time);
+
     var shape = Units.shapes[typeId];
     shape(ctx, cell, k, t, opts, time);
 
-    // Улучшенный юнит: акцентная метка-шеврон над корпусом
-    if (opts.level > 1) {
-      ctx.strokeStyle = t.color;
-      ctx.globalAlpha = 0.9;
-      ctx.lineWidth = 1.4 * k;
-      ctx.beginPath();
-      ctx.moveTo(-cell * 0.07, -cell * 0.335);
-      ctx.lineTo(0, -cell * 0.385);
-      ctx.lineTo(cell * 0.07, -cell * 0.335);
-      ctx.stroke();
-      ctx.globalAlpha = 1;
-    }
+    if (opts.level > 1) Units.tierMark(ctx, cell, k, t, opts.level, time);
 
     ctx.restore();
 
@@ -274,6 +309,81 @@ var Units = {
       var by = y + cell * 0.33;
       Draw.bar(ctx, x - barW / 2, by, barW, barH, opts.hp / opts.maxHp, PAL.gridLine, t.color);
     }
+  },
+
+  /* Постамент третьей ступени: кольцо под юнитом с четырьмя опорами */
+  tierBase: function (ctx, u, k, t, time) {
+    var spin = time * 0.6;
+    ctx.save();
+    ctx.strokeStyle = t.color;
+    ctx.lineWidth = Math.max(1, 1.2 * k);
+
+    ctx.globalAlpha = 0.22;
+    ctx.beginPath();
+    ctx.ellipse(0, u * 0.30, u * 0.36, u * 0.11, 0, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Опоры медленно вращаются — юнит выглядит работающим, а не наклейкой
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = t.color;
+    for (var i = 0; i < 4; i++) {
+      var a = spin + i * Math.PI / 2;
+      Draw.circle(ctx, Math.cos(a) * u * 0.36, u * 0.30 + Math.sin(a) * u * 0.11, 1.5 * k);
+      ctx.fill();
+    }
+    ctx.restore();
+  },
+
+  /* Знак ступени: у второй — шеврон и боковые скобы,
+     у третьей — двойной шеврон, рамка по углам и плотное свечение */
+  tierMark: function (ctx, u, k, t, level, time) {
+    ctx.save();
+    ctx.strokeStyle = t.color;
+    ctx.lineJoin = 'round';
+
+    // Свечение по контуру корпуса
+    ctx.globalAlpha = level > 2 ? 0.3 : 0.18;
+    ctx.lineWidth = (level > 2 ? 5 : 3.5) * k;
+    Draw.roundRect(ctx, -u * 0.33, -u * 0.33, u * 0.66, u * 0.66, u * 0.16);
+    ctx.stroke();
+
+    // Шевроны
+    ctx.globalAlpha = 0.95;
+    ctx.lineWidth = 1.5 * k;
+    var chevrons = level > 2 ? 2 : 1;
+    for (var i = 0; i < chevrons; i++) {
+      var y = -u * 0.335 - i * u * 0.055;
+      ctx.beginPath();
+      ctx.moveTo(-u * 0.075, y);
+      ctx.lineTo(0, y - u * 0.05);
+      ctx.lineTo(u * 0.075, y);
+      ctx.stroke();
+    }
+
+    // Угловые скобы: у второй ступени две, у третьей четыре
+    ctx.globalAlpha = 0.75;
+    ctx.lineWidth = 1.4 * k;
+    var c = u * 0.30, arm = u * 0.09;
+    var corners = level > 2
+      ? [[-1, -1], [1, -1], [-1, 1], [1, 1]]
+      : [[-1, 1], [1, 1]];
+    for (var j = 0; j < corners.length; j++) {
+      var sx = corners[j][0], sy = corners[j][1];
+      ctx.beginPath();
+      ctx.moveTo(sx * c, sy * c - sy * arm);
+      ctx.lineTo(sx * c, sy * c);
+      ctx.lineTo(sx * c - sx * arm, sy * c);
+      ctx.stroke();
+    }
+
+    // Третья ступень дышит
+    if (level > 2) {
+      ctx.globalAlpha = 0.12 + 0.12 * (0.5 + 0.5 * Math.sin(time * 2.4));
+      ctx.lineWidth = 2 * k;
+      Draw.circle(ctx, 0, 0, u * 0.42);
+      ctx.stroke();
+    }
+    ctx.restore();
   },
 
   /* Общая подложка: корпус с обводкой цвета роли */

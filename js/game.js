@@ -202,6 +202,7 @@ var Game = {
     this.stepWaves(dt);
 
     UI.tickCards(this);
+    UI.tickUnitMenu(this);
   },
 
   /* ---------------- Защитники ---------------- */
@@ -1006,15 +1007,22 @@ var Game = {
     this.syncHud();
   },
 
+  /* Сколько ступеней улучшения доступно: третья открыта только
+     на Ледяной станции и в бесконечном режиме. */
+  maxTier: function () {
+    return (this.endless || (this.level && this.level.planet === 3)) ? 3 : 2;
+  },
+
   upgradeUnit: function (u) {
     var cost = Units.upgradeCost(u);
-    if (!Units.canUpgrade(u) || this.sparks < cost) { Sound.play('deny'); return; }
+    if (!Units.canUpgrade(u, this.maxTier()) || this.sparks < cost) { Sound.play('deny'); return; }
     this.sparks -= cost;
     Units.upgrade(u);
-    this.closeUnitMenu();
     Sound.play('place');
     TG.haptic('medium');
     this.syncHud();
+    // Меню не закрываем: игрок может улучшить дальше, не переоткрывая его
+    if (this.menuUnit === u) UI.showUnitMenu(this, u);
   },
 
   syncHud: function () {

@@ -16,6 +16,7 @@ var UI = {
       screens: {
         menu: $('screen-menu'),
         levels: $('screen-levels'),
+        codex: $('screen-codex'),
         game: $('screen-game')
       },
       sparkCount: $('spark-count'),
@@ -37,6 +38,16 @@ var UI = {
       resultStars: $('result-stars'),
       resultStats: $('result-stats'),
       levelList: $('level-list'),
+      levelsTitle: $('levels-title'),
+      planetView: $('planet-view'),
+      planetCanvas: $('planet-canvas'),
+      planetTitle: $('planet-title'),
+      planetSub: $('planet-sub'),
+      planetDesc: $('planet-desc'),
+      planetProgress: $('planet-progress'),
+      planetDots: $('planet-dots'),
+      planetOpen: $('planet-open'),
+      codexList: $('codex-list'),
       menuNote: $('menu-note'),
       btnEndless: $('btn-endless'),
       btnSound: $('btn-sound'),
@@ -49,6 +60,7 @@ var UI = {
 
     this.drawMenuMark();
     this.bindMenu();
+    this.bindPlanets();
     this.bindGameChrome();
     this.bindOverlays();
     this.syncSoundButton();
@@ -60,7 +72,8 @@ var UI = {
       this.el.screens[key].classList.toggle('active', key === name);
     }
     if (name === 'menu') this.refreshMenu();
-    if (name === 'levels') this.buildLevels();
+    if (name === 'levels') this.showPlanets();
+    if (name === 'codex') this.buildCodex();
   },
 
   /* Знак на главном экране: рубеж, за которым свет */
@@ -99,7 +112,13 @@ var UI = {
       Main.playLevel(Storage.data.maxLevel);
     });
     document.getElementById('btn-levels').addEventListener('click', function () { self.show('levels'); });
-    document.getElementById('btn-levels-back').addEventListener('click', function () { self.show('menu'); });
+    document.getElementById('btn-codex').addEventListener('click', function () { self.show('codex'); });
+    document.getElementById('btn-codex-back').addEventListener('click', function () { self.show('menu'); });
+    // Назад с экрана уровней возвращает к планетам, и только потом в меню
+    document.getElementById('btn-levels-back').addEventListener('click', function () {
+      if (self.el.planetView.classList.contains('hidden')) self.showPlanets();
+      else self.show('menu');
+    });
     this.el.btnEndless.addEventListener('click', function () {
       Sound.resume();
       Main.playEndless();
@@ -124,55 +143,296 @@ var UI = {
     this.el.btnEndless.hidden = !d.campaignDone;
   },
 
-  /* ---------------- Карта уровней ----------------
-     Три планеты, у каждой своя механика и свой набор уровней. */
-  buildLevels: function () {
-    var list = this.el.levelList;
-    list.innerHTML = '';
+  /* ======================================================================
+     ПЛАНЕТЫ
+     Карусель из трёх шаров: стрелки и свайп листают, перетаскивание крутит,
+     тап открывает список уровней планеты.
+     ====================================================================== */
+  planetIndex: 0,
+  planetAngle: 0,
+  planetSpin: 0,
+  planetRaf: 0,
+  planetLast: 0,
+  planetSize: 220,
+  planetCtx: null,
+
+  showPlanets: function () {
+    this.el.planetView.classList.remove('hidden');
+    this.el.levelList.classList.add('hidden');
+    this.el.levelsTitle.textContent = 'Планеты';
+    this.syncPlanet();
+    this.startPlanetLoop();
+  },
+
+  planetLocked: function (planet) {
+    return Waves.firstOfPlanet(planet.id) > Storage.data.maxLevel;
+  },
+
+  syncPlanet: function () {
+    var p = PLANETS[this.planetIndex];
     var d = Storage.data;
+    var levels = Waves.ofPlanet(p.id);
+    var locked = this.planetLocked(p);
+    var got = 0;
+    for (var i = 0; i < levels.length; i++) got += (d.stars[levels[i].id] || 0);
 
-    for (var p = 0; p < PLANETS.length; p++) {
-      var planet = PLANETS[p];
-      var levels = Waves.ofPlanet(planet.id);
-      var firstId = levels[0].id;
-      var planetOpen = firstId <= d.maxLevel;
+    this.el.planetTitle.textContent = p.name;
+    this.el.planetSub.textContent = p.sub;
+    this.el.planetDesc.textContent = locked
+      ? 'Откроется, когда пройдёшь предыдущую планету'
+      : p.desc;
+    this.el.planetProgress.textContent = locked
+      ? 'Заблокирована'
+      : got + ' из ' + (levels.length * 3) + ' звёзд · ' + levels.length + ' уровней';
+    this.el.planetProgress.classList.toggle('locked', locked);
+    this.el.planetOpen.style.opacity = locked ? '.4' : '1';
 
-      var wrap = document.createElement('div');
-      wrap.className = 'planet' + (planetOpen ? '' : ' locked');
-
-      // Шапка планеты: номер, имя, сколько звёзд собрано
-      var got = 0;
-      for (var i = 0; i < levels.length; i++) got += (d.stars[levels[i].id] || 0);
-
-      var head = document.createElement('div');
-      head.className = 'planet-head';
-      var mark = document.createElement('div');
-      mark.className = 'planet-mark';
-      mark.textContent = planet.id;
-      var meta = document.createElement('div');
-      meta.className = 'planet-meta';
-      meta.innerHTML = '<div class="planet-name">' + planet.name + '</div>' +
-        '<div class="planet-sub">' + planet.sub + ' · ' + levels.length + ' уровней</div>';
-      var score = document.createElement('div');
-      score.className = 'planet-score';
-      score.textContent = got + ' / ' + (levels.length * 3);
-      head.appendChild(mark); head.appendChild(meta); head.appendChild(score);
-
-      var desc = document.createElement('div');
-      desc.className = 'planet-desc';
-      desc.textContent = planetOpen ? planet.desc : 'Откроется после предыдущей планеты';
-
-      wrap.appendChild(head);
-      wrap.appendChild(desc);
-
-      for (var j = 0; j < levels.length; j++) {
-        wrap.appendChild(this.makeLevelNode(levels[j], d));
-      }
-      list.appendChild(wrap);
+    var dots = this.el.planetDots;
+    dots.innerHTML = '';
+    for (var j = 0; j < PLANETS.length; j++) {
+      var dot = document.createElement('i');
+      if (j === this.planetIndex) dot.className = 'on';
+      dots.appendChild(dot);
     }
   },
 
-  makeLevelNode: function (lvl, d) {
+  planetGo: function (dir) {
+    this.planetIndex = (this.planetIndex + dir + PLANETS.length) % PLANETS.length;
+    this.planetSpin = dir * 4;        // подкрутка в сторону листания
+    this.syncPlanet();
+  },
+
+  bindPlanets: function () {
+    var self = this;
+    document.getElementById('planet-prev').addEventListener('click', function () { self.planetGo(-1); });
+    document.getElementById('planet-next').addEventListener('click', function () { self.planetGo(1); });
+    this.el.planetOpen.addEventListener('click', function () { self.openPlanetLevels(); });
+
+    var cv = this.el.planetCanvas;
+    var dragging = false, lastX = 0, total = 0;
+    var down = function (x) { dragging = true; lastX = x; total = 0; };
+    var move = function (x) {
+      if (!dragging) return;
+      var dx = x - lastX; lastX = x; total += dx;
+      self.planetAngle -= dx * 0.012;
+      self.planetSpin = -dx * 0.5;
+    };
+    var up = function () {
+      if (!dragging) return;
+      dragging = false;
+      if (Math.abs(total) < 8) self.openPlanetLevels();      // тап
+      else if (total < -60) self.planetGo(1);                // свайп влево
+      else if (total > 60) self.planetGo(-1);
+    };
+
+    if (window.PointerEvent) {
+      cv.addEventListener('pointerdown', function (e) {
+        e.preventDefault();
+        if (cv.setPointerCapture) { try { cv.setPointerCapture(e.pointerId); } catch (err) {} }
+        down(e.clientX);
+      });
+      cv.addEventListener('pointermove', function (e) { move(e.clientX); });
+      cv.addEventListener('pointerup', up);
+      cv.addEventListener('pointercancel', up);
+    } else {
+      cv.addEventListener('touchstart', function (e) { down(e.changedTouches[0].clientX); }, { passive: true });
+      cv.addEventListener('touchmove', function (e) { move(e.changedTouches[0].clientX); }, { passive: true });
+      cv.addEventListener('touchend', up);
+      cv.addEventListener('mousedown', function (e) { down(e.clientX); });
+      cv.addEventListener('mousemove', function (e) { move(e.clientX); });
+      cv.addEventListener('mouseup', up);
+    }
+  },
+
+  startPlanetLoop: function () {
+    var cv = this.el.planetCanvas;
+    var size = Math.max(170, Math.min(250, window.innerWidth - 130));
+    var dpr = Math.min(window.devicePixelRatio || 1, 3);
+    cv.width = Math.round(size * dpr);
+    cv.height = Math.round(size * dpr);
+    cv.style.width = size + 'px';
+    cv.style.height = size + 'px';
+    this.planetSize = size;
+    this.planetCtx = cv.getContext('2d');
+    this.planetCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    if (this.planetRaf) return;
+    var self = this;
+    this.planetLast = 0;
+    var loop = function (ts) {
+      // Цикл живёт только пока карусель на экране
+      if (!self.el.screens.levels.classList.contains('active') ||
+          self.el.planetView.classList.contains('hidden')) {
+        self.planetRaf = 0;
+        return;
+      }
+      self.planetRaf = requestAnimationFrame(loop);
+      var dt = self.planetLast ? Math.min(0.05, (ts - self.planetLast) / 1000) : 0.016;
+      self.planetLast = ts;
+      self.planetAngle += (0.25 + self.planetSpin) * dt;
+      self.planetSpin *= Math.pow(0.03, dt);     // инерция гаснет
+      self.drawPlanet();
+    };
+    this.planetRaf = requestAnimationFrame(loop);
+  },
+
+  /* Точки на поверхности: детерминированные, чтобы планета была узнаваемой */
+  planetFeatures: function (p) {
+    if (!this._feat) this._feat = {};
+    if (this._feat[p.id]) return this._feat[p.id];
+    var rand = rng(p.id * 977 + 5);
+    var arr = [];
+    var n = p.feature === 'craters' ? 16 : 11;
+    for (var i = 0; i < n; i++) {
+      arr.push({
+        lon: rand() * Math.PI * 2,
+        lat: (rand() - 0.5) * 1.8,
+        s: 0.07 + rand() * 0.15
+      });
+    }
+    this._feat[p.id] = arr;
+    return arr;
+  },
+
+  drawPlanet: function () {
+    var ctx = this.planetCtx;
+    if (!ctx) return;
+    var size = this.planetSize;
+    var p = PLANETS[this.planetIndex];
+    var locked = this.planetLocked(p);
+    var col = locked ? PAL.textMuted : p.color;
+    var fill = locked ? '#141A22' : p.fill;
+    var cx = size / 2, cy = size / 2, r = size * 0.36;
+    var ang = this.planetAngle;
+
+    ctx.clearRect(0, 0, size, size);
+
+    // Кольцо станции: задняя половина уходит за шар
+    if (p.ring) {
+      ctx.save();
+      ctx.globalAlpha = locked ? 0.15 : 0.35;
+      ctx.strokeStyle = col;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, r * 1.45, r * 0.34, -0.35, Math.PI, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Диск
+    ctx.fillStyle = fill;
+    Draw.circle(ctx, cx, cy, r);
+    ctx.fill();
+
+    // Поверхность
+    ctx.save();
+    Draw.circle(ctx, cx, cy, r);
+    ctx.clip();
+
+    var feats = this.planetFeatures(p);
+    for (var i = 0; i < feats.length; i++) {
+      var f = feats[i];
+      var a = f.lon + ang;
+      var cosA = Math.cos(a);
+      if (cosA <= 0.06) continue;                     // деталь на обратной стороне
+      var x = cx + Math.sin(a) * r * Math.cos(f.lat);
+      var y = cy + Math.sin(f.lat) * r;
+      var rr = r * f.s * cosA;
+
+      if (p.feature === 'craters') {
+        ctx.globalAlpha = locked ? 0.12 : 0.30;
+        ctx.fillStyle = PAL.bgDeep;
+        Draw.circle(ctx, x, y, rr); ctx.fill();
+        ctx.globalAlpha = locked ? 0.12 : 0.35;
+        ctx.strokeStyle = col; ctx.lineWidth = 1;
+        Draw.circle(ctx, x, y, rr); ctx.stroke();
+      } else if (p.feature === 'ice') {
+        ctx.globalAlpha = locked ? 0.08 : 0.22;
+        ctx.fillStyle = '#DCEBFF';
+        ctx.beginPath();
+        ctx.ellipse(x, y, rr * 1.5, rr * 0.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        ctx.globalAlpha = locked ? 0.10 : 0.28;
+        ctx.fillStyle = col;
+        ctx.beginPath();
+        ctx.ellipse(x, y, rr * 1.2, rr * 0.8, f.lat, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // Терминатор: тень на убегающей стороне даёт объём без градиентов в телах
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = 'rgba(10,14,20,0.55)';
+    Draw.circle(ctx, cx + r * 0.62, cy - r * 0.18, r * 1.08);
+    ctx.fill();
+    ctx.restore();
+
+    // Обводка и атмосфера
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 1.5;
+    Draw.circle(ctx, cx, cy, r);
+    ctx.stroke();
+    ctx.globalAlpha = locked ? 0.08 : 0.18;
+    ctx.lineWidth = 6;
+    Draw.circle(ctx, cx, cy, r + 4);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    // Передняя половина кольца
+    if (p.ring) {
+      ctx.globalAlpha = locked ? 0.2 : 0.55;
+      ctx.strokeStyle = col;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, r * 1.45, r * 0.34, -0.35, 0, Math.PI);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+
+    if (locked) this.drawLock(ctx, cx, cy, size * 0.075);
+  },
+
+  drawLock: function (ctx, cx, cy, s) {
+    ctx.save();
+    ctx.strokeStyle = PAL.textMuted;
+    ctx.fillStyle = PAL.bgDeep;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy - s * 0.35, s * 0.55, Math.PI, 0);
+    ctx.stroke();
+    Draw.roundRect(ctx, cx - s * 0.85, cy - s * 0.35, s * 1.7, s * 1.3, s * 0.25);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  },
+
+  /* ---------------- Уровни выбранной планеты ---------------- */
+  openPlanetLevels: function () {
+    var p = PLANETS[this.planetIndex];
+    if (this.planetLocked(p)) {
+      this.toast('Планета ещё закрыта');
+      return;
+    }
+    Sound.resume();
+    this.buildLevels(p);
+    this.el.planetView.classList.add('hidden');
+    this.el.levelList.classList.remove('hidden');
+    this.el.levelsTitle.textContent = p.name;
+  },
+
+  buildLevels: function (planet) {
+    var list = this.el.levelList;
+    list.innerHTML = '';
+    var d = Storage.data;
+    var levels = Waves.ofPlanet(planet.id);
+    for (var j = 0; j < levels.length; j++) {
+      // Внутри планеты уровни нумеруются с единицы
+      list.appendChild(this.makeLevelNode(levels[j], j + 1, d));
+    }
+  },
+
+  makeLevelNode: function (lvl, shownNum, d) {
     var stars = d.stars[lvl.id] || 0;
     var open = lvl.id <= d.maxLevel;
     var node = document.createElement('div');
@@ -183,7 +443,7 @@ var UI = {
 
     var num = document.createElement('div');
     num.className = 'level-num';
-    num.textContent = lvl.id;
+    num.textContent = shownNum;
 
     var meta = document.createElement('div');
     meta.className = 'level-meta';
@@ -208,6 +468,91 @@ var UI = {
       node.addEventListener('click', function () { Sound.resume(); Main.playLevel(lvl.id); });
     }
     return node;
+  },
+
+  /* ======================================================================
+     СПРАВОЧНИК: что умеет защитник и что даёт каждая ступень улучшения
+     ====================================================================== */
+  buildCodex: function () {
+    var list = this.el.codexList;
+    list.innerHTML = '';
+    for (var i = 0; i < UNIT_ORDER.length; i++) {
+      list.appendChild(this.makeCodexItem(UNIT_ORDER[i]));
+    }
+  },
+
+  unitCanvas: function (typeId, level, box, cell) {
+    var cv = document.createElement('canvas');
+    var dpr = Math.min(window.devicePixelRatio || 1, 3);
+    cv.width = Math.round(box * dpr);
+    cv.height = Math.round(box * dpr);
+    cv.style.width = box + 'px';
+    cv.style.height = box + 'px';
+    var ctx = cv.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    Units.draw(ctx, box / 2, box / 2, cell, typeId, { level: level, flash: 0, time: 0 });
+    return cv;
+  },
+
+  makeCodexItem: function (typeId) {
+    var def = UNIT_TYPES[typeId];
+    var item = document.createElement('div');
+    item.className = 'codex-item';
+
+    var head = document.createElement('div');
+    head.className = 'codex-head';
+    head.appendChild(this.unitCanvas(typeId, 1, 40, typeId === 'mine' ? 80 : 46));
+
+    var meta = document.createElement('div');
+    meta.className = 'codex-meta';
+    meta.innerHTML = '<div class="codex-name">' + def.name + '</div>' +
+      '<div class="codex-role">' + def.role + '</div>';
+    var cost = document.createElement('div');
+    cost.className = 'codex-cost';
+    cost.textContent = def.cost;
+    head.appendChild(meta);
+    head.appendChild(cost);
+
+    var body = document.createElement('div');
+    body.className = 'codex-body';
+    for (var lv = 1; lv <= 3; lv++) body.appendChild(this.makeCodexTier(typeId, lv));
+
+    head.addEventListener('click', function () { item.classList.toggle('open'); });
+    item.appendChild(head);
+    item.appendChild(body);
+    return item;
+  },
+
+  makeCodexTier: function (typeId, level) {
+    var def = UNIT_TYPES[typeId];
+    var row = document.createElement('div');
+    row.className = 'codex-tier';
+    row.appendChild(this.unitCanvas(typeId, level, 52, typeId === 'mine' ? 90 : 52));
+
+    var meta = document.createElement('div');
+    meta.className = 'codex-tier-meta';
+
+    var title = 'Ступень ' + level;
+    if (level === 1) title += ' · базовая';
+    else {
+      title += ' · <span class="price">' + Units.tierCost(def, level) + ' искр</span>';
+      if (level === 3) title += ' · <span class="where">Ледяная станция</span>';
+    }
+    var head = document.createElement('div');
+    head.className = 'codex-tier-name';
+    head.innerHTML = title;
+    meta.appendChild(head);
+
+    var lines = Units.describe(def, level);
+    for (var i = 0; i < lines.length; i++) {
+      var row2 = document.createElement('div');
+      row2.className = 'codex-stat' + (lines[i][2] ? ' grow' : '');
+      row2.innerHTML = '<span>' + lines[i][0] + '</span><b>' + lines[i][1] + '</b>';
+      meta.appendChild(row2);
+    }
+
+    row.appendChild(meta);
+    return row;
   },
 
   /* ---------------- Игровой хром ---------------- */
@@ -380,26 +725,40 @@ var UI = {
   },
 
   /* ---------------- Меню установленного юнита ---------------- */
+  menuRefs: null,
+
   showUnitMenu: function (game, unit) {
     var m = this.el.unitMenu;
+    this.menuRefs = null;
     if (!unit) { m.classList.add('hidden'); m.innerHTML = ''; return; }
 
+    var maxTier = game.maxTier();
     m.innerHTML = '';
+
+    var head = document.createElement('div');
+    head.className = 'unit-menu-head';
+    head.innerHTML = '<span>' + unit.def.name + '</span>' +
+      '<span class="tier">' + unit.level + ' / ' + maxTier + '</span>';
+    m.appendChild(head);
+
     var sell = document.createElement('button');
     sell.innerHTML = '<span>Продать</span><span class="price">+' + Units.sellPrice(unit) + '</span>';
     sell.addEventListener('click', function (e) { e.stopPropagation(); Game.sellUnit(unit); });
     m.appendChild(sell);
 
     var up = document.createElement('button');
-    if (Units.canUpgrade(unit)) {
+    if (Units.canUpgrade(unit, maxTier)) {
       var cost = Units.upgradeCost(unit);
-      var afford = game.sparks >= cost;
-      up.className = afford ? '' : 'disabled';
+      up.className = game.sparks >= cost ? '' : 'disabled';
       up.innerHTML = '<span>Улучшить</span><span class="price">' + cost + '</span>';
       up.addEventListener('click', function (e) { e.stopPropagation(); Game.upgradeUnit(unit); });
+      // Меню живёт, пока открыто: как только искр хватит, кнопка оживёт сама
+      this.menuRefs = { unit: unit, btn: up, cost: cost, afford: game.sparks >= cost };
     } else {
       up.className = 'disabled';
-      up.innerHTML = '<span>Улучшен</span><span class="price">—</span>';
+      up.innerHTML = unit.level >= 3
+        ? '<span>Максимум</span><span class="price">—</span>'
+        : '<span>Дальше — на Станции</span><span class="price">—</span>';
     }
     m.appendChild(up);
 
@@ -417,6 +776,16 @@ var UI = {
     top = Math.max(6, top);
     m.style.left = left + 'px';
     m.style.top = top + 'px';
+  },
+
+  /* Каждый кадр сверяем доступность улучшения с текущим запасом искр */
+  tickUnitMenu: function (game) {
+    var r = this.menuRefs;
+    if (!r || game.menuUnit !== r.unit) return;
+    var afford = game.sparks >= r.cost;
+    if (afford === r.afford) return;
+    r.afford = afford;
+    r.btn.classList.toggle('disabled', !afford);
   },
 
   /* ---------------- Оверлеи ---------------- */

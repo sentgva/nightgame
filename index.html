@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#0A0E14">
 <title>Ночная оборона</title>
-<link rel="stylesheet" href="css/style.css?v=3">
+<link rel="stylesheet" href="css/style.css?v=4">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
@@ -26,7 +26,8 @@
       <p class="subtitle">Last Row</p>
       <div class="menu-buttons">
         <button class="btn primary" id="btn-play">Играть</button>
-        <button class="btn" id="btn-levels">Карта уровней</button>
+        <button class="btn" id="btn-levels">Планеты</button>
+        <button class="btn" id="btn-codex">Справочник</button>
         <button class="btn" id="btn-endless" hidden>Бесконечные волны</button>
       </div>
       <p class="menu-note" id="menu-note"></p>
@@ -34,13 +35,39 @@
     </div>
   </section>
 
-  <!-- ЭКРАН: карта уровней -->
+  <!-- ЭКРАН: планеты и уровни -->
   <section id="screen-levels" class="screen">
     <header class="sub-head">
       <button class="icon-btn" id="btn-levels-back" aria-label="назад">&#8592;</button>
-      <span>Карта уровней</span>
+      <span id="levels-title">Планеты</span>
     </header>
-    <div id="level-list" class="level-list"></div>
+
+    <div id="planet-view" class="planet-view">
+      <div class="carousel">
+        <button class="arrow" id="planet-prev" aria-label="предыдущая">&#8249;</button>
+        <canvas id="planet-canvas"></canvas>
+        <button class="arrow" id="planet-next" aria-label="следующая">&#8250;</button>
+      </div>
+      <div class="planet-dots" id="planet-dots"></div>
+      <div class="planet-info">
+        <h2 id="planet-title"></h2>
+        <div class="planet-sub" id="planet-sub"></div>
+        <p id="planet-desc"></p>
+        <div class="planet-progress" id="planet-progress"></div>
+        <button class="btn primary" id="planet-open">Выбрать уровень</button>
+      </div>
+    </div>
+
+    <div id="level-list" class="level-list hidden"></div>
+  </section>
+
+  <!-- ЭКРАН: справочник по защитникам -->
+  <section id="screen-codex" class="screen">
+    <header class="sub-head">
+      <button class="icon-btn" id="btn-codex-back" aria-label="назад">&#8592;</button>
+      <span>Справочник</span>
+    </header>
+    <div id="codex-list" class="codex-list"></div>
   </section>
 
   <!-- ЭКРАН: игра -->
@@ -111,15 +138,15 @@
   </div>
 </div>
 
-<script src="js/storage.js?v=3"></script>
-<script src="js/telegram.js?v=3"></script>
-<script src="js/sound.js?v=3"></script>
-<script src="js/grid.js?v=3"></script>
-<script src="js/units.js?v=3"></script>
-<script src="js/enemies.js?v=3"></script>
-<script src="js/waves.js?v=3"></script>
-<script src="js/ui.js?v=3"></script>
-<script src="js/game.js?v=3"></script>
-<script src="js/main.js?v=3"></script>
+<script src="js/storage.js?v=4"></script>
+<script src="js/telegram.js?v=4"></script>
+<script src="js/sound.js?v=4"></script>
+<script src="js/grid.js?v=4"></script>
+<script src="js/units.js?v=4"></script>
+<script src="js/enemies.js?v=4"></script>
+<script src="js/waves.js?v=4"></script>
+<script src="js/ui.js?v=4"></script>
+<script src="js/game.js?v=4"></script>
+<script src="js/main.js?v=4"></script>
 </body>
 </html>
