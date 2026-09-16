@@ -53,6 +53,7 @@ var Game = {
   cardCd: {},
   selected: null, lastPlaceTs: 0, menuUnit: null,
   iceT: 0, collapseT: 0, sporeT: 0,
+  dev: false, devImmortal: true,
   shake: 0, edgeFlash: 0,
 
   /* ---------------- Инициализация ---------------- */
@@ -126,6 +127,8 @@ var Game = {
     this.edgeFlash = 0;
     this.time = 0;
     this.acc = 0;
+
+    this.dev = !!Storage.data.dev;     // режим разработчика фиксируется на старте уровня
 
     this.cardCd = {};
     for (var i = 0; i < UNIT_ORDER.length; i++) this.cardCd[UNIT_ORDER[i]] = 0;
@@ -604,6 +607,11 @@ var Game = {
 
   loseLife: function () {
     if (this.over) return;      // уровень уже завершён — жизни больше не снимаем
+    if (this.dev && this.devImmortal) {
+      this.shake = 0.6;
+      UI.toast('Прорыв (dev: жизнь цела)');
+      return;
+    }
     this.lives--;
     this.shake = 1;
     this.edgeFlash = 1;
@@ -1188,7 +1196,7 @@ var Game = {
     u.spawnT = 0;
     Grid.set(col, row, u);
     this.sparks -= def.cost;
-    this.cardCd[typeId] = def.cooldown;
+    if (!this.dev) this.cardCd[typeId] = def.cooldown;
     this.deselect();
     Sound.play('place');
     TG.haptic('light');
@@ -1236,6 +1244,37 @@ var Game = {
     this.syncHud();
     // Меню не закрываем: игрок может улучшить дальше, не переоткрывая его
     if (this.menuUnit === u) UI.showUnitMenu(this, u);
+  },
+
+  /* ---------------- Режим разработчика ----------------
+     Не трогает баланс: просто даёт руками проверить любой момент боя. */
+  devAction: function (name) {
+    if (!this.dev) return;
+    if (name === 'sparks') {
+      this.gain(1000, Grid.w / 2, Grid.h * 0.4);
+      return;
+    }
+    if (name === 'kill') {
+      for (var i = this.enemies.length - 1; i >= 0; i--) {
+        if (!this.enemies[i].dead) this.killEnemy(this.enemies[i]);
+      }
+      return;
+    }
+    if (name === 'wave') {
+      // Досрочно закрываем текущую волну: очередь спавна и поле чистятся
+      this.spawnQueue.length = 0;
+      for (var j = this.enemies.length - 1; j >= 0; j--) {
+        if (!this.enemies[j].dead) this.killEnemy(this.enemies[j]);
+      }
+      if (this.phase === 'prep') this.startEarly();
+      return;
+    }
+    if (name === 'win') { this.finish(true); return; }
+    if (name === 'immortal') {
+      this.devImmortal = !this.devImmortal;
+      UI.syncDevPanel(this);
+      UI.toast('Бессмертие: ' + (this.devImmortal ? 'вкл' : 'выкл'));
+    }
   },
 
   syncHud: function () {

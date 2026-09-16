@@ -48,6 +48,10 @@ var UI = {
       planetDots: $('planet-dots'),
       planetOpen: $('planet-open'),
       codexList: $('codex-list'),
+      btnDev: $('btn-dev'),
+      btnDevGame: $('btn-dev-game'),
+      devPanel: $('dev-panel'),
+      devImmortal: $('dev-immortal'),
       menuNote: $('menu-note'),
       btnEndless: $('btn-endless'),
       btnSound: $('btn-sound'),
@@ -123,6 +127,11 @@ var UI = {
       Sound.resume();
       Main.playEndless();
     });
+    this.el.btnDev.addEventListener('click', function () {
+      Storage.setDev(!Storage.data.dev);
+      self.refreshMenu();
+      self.toast(Storage.data.dev ? 'Dev mode включён' : 'Dev mode выключен');
+    });
     document.getElementById('btn-reset').addEventListener('click', function () {
       if (window.confirm('Сбросить весь прогресс?')) {
         Storage.reset();
@@ -140,6 +149,7 @@ var UI = {
     if (!Storage.available) note += ' · прогресс не сохраняется';
     if (name) note = name + ', ' + note.charAt(0).toLowerCase() + note.slice(1);
     this.el.menuNote.textContent = note + ' · v' + APP_VERSION;
+    this.el.btnDev.classList.toggle('on', !!d.dev);
     this.el.btnEndless.hidden = !d.campaignDone;
   },
 
@@ -164,8 +174,13 @@ var UI = {
     this.startPlanetLoop();
   },
 
+  /* Докуда открыта кампания. В dev-режиме — вся. */
+  maxOpen: function () {
+    return Storage.data.dev ? Waves.total : Storage.data.maxLevel;
+  },
+
   planetLocked: function (planet) {
-    return Waves.firstOfPlanet(planet.id) > Storage.data.maxLevel;
+    return Waves.firstOfPlanet(planet.id) > this.maxOpen();
   },
 
   syncPlanet: function () {
@@ -434,7 +449,7 @@ var UI = {
 
   makeLevelNode: function (lvl, shownNum, d) {
     var stars = d.stars[lvl.id] || 0;
-    var open = lvl.id <= d.maxLevel;
+    var open = lvl.id <= this.maxOpen();
     var node = document.createElement('div');
     node.className = 'level-node' +
       (open ? '' : ' locked') +
@@ -567,6 +582,15 @@ var UI = {
       self.syncSoundButton();
     });
     this.el.btnEarly.addEventListener('click', function () { Game.startEarly(); });
+
+    // Панель разработчика прячется и разворачивается шестерёнкой в шапке
+    this.el.btnDevGame.addEventListener('click', function () {
+      self.el.devPanel.classList.toggle('hidden');
+    });
+    this.el.devPanel.addEventListener('click', function (e) {
+      var act = e.target.dataset ? e.target.dataset.dev : null;
+      if (act) Game.devAction(act);
+    });
   },
 
   syncSoundButton: function () {
@@ -577,12 +601,22 @@ var UI = {
 
   enterGame: function (game) {
     this.show('game');
-    this.unlocked = game.endless ? UNIT_ORDER.slice() : Waves.unlockedAt(game.levelId);
+    // В dev-режиме доступны все защитники сразу
+    this.unlocked = (game.endless || Storage.data.dev)
+      ? UNIT_ORDER.slice()
+      : Waves.unlockedAt(game.levelId);
     this.buildDock(game);
     this.showUnitMenu(game, null);
     this.showPause(false);
     this.el.overlayResult.classList.add('hidden');
+    this.el.btnDevGame.hidden = !game.dev;
+    this.el.devPanel.classList.add('hidden');
+    this.syncDevPanel(game);
     this.updateBanner(game);
+  },
+
+  syncDevPanel: function (game) {
+    this.el.devImmortal.textContent = 'Бессмертие: ' + (game.devImmortal ? 'вкл' : 'выкл');
   },
 
   /* ---------------- Нижняя панель ---------------- */

@@ -12,6 +12,7 @@ var Storage = (function () {
       maxLevel: 1,          // максимальный открытый уровень (1..10)
       stars: {},            // { "1": 3, "2": 2, ... }
       sound: true,
+      dev: false,           // режим разработчика: всё открыто, жизни не тратятся
       tutorialDone: false,
       campaignDone: false,
       endlessBest: 0,       // лучшая волна в бесконечном режиме
@@ -65,6 +66,7 @@ var Storage = (function () {
   }
 
   function setSound(on) { data.sound = !!on; save(); }
+  function setDev(on) { data.dev = !!on; save(); }
   function setTutorialDone() { data.tutorialDone = true; save(); }
 
   function reset() {
@@ -81,6 +83,7 @@ var Storage = (function () {
     addStats: addStats,
     setEndlessBest: setEndlessBest,
     setSound: setSound,
+    setDev: setDev,
     setTutorialDone: setTutorialDone,
     reset: reset
   };
