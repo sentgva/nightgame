@@ -31,6 +31,26 @@
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
+/* ---------- Полосы прокрутки ----------
+   Системная полоса светлая и выбивается из тёмного интерфейса,
+   поэтому перекрашиваем её и в Firefox, и в движках на WebKit. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #2C3A4C transparent;
+}
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-button { display: none; }   /* стрелки по краям тут лишние */
+::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: #2C3A4C;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+  border-radius: 6px;
+}
+::-webkit-scrollbar-thumb:hover { background: #3C4C60; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:active { background: var(--spark); background-clip: padding-box; }
+
 html, body {
   margin: 0; padding: 0;
   height: 100%;
