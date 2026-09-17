@@ -45,7 +45,6 @@ var UI = {
       btnDevGame: $('btn-dev-game'),
       devPanel: $('dev-panel'),
       devImmortal: $('dev-immortal'),
-      menuNote: $('menu-note'),
       btnEndless: $('btn-endless'),
       btnSound: $('btn-sound'),
       btnPause: $('btn-pause'),
@@ -94,12 +93,6 @@ var UI = {
     Draw.circle(ctx, 60, 48, 26);
     ctx.stroke();
 
-    // Рубеж под ней
-    ctx.globalAlpha = 0.18;
-    ctx.fillStyle = PAL.danger;
-    ctx.fillRect(14, 96, 92, 6);
-    ctx.globalAlpha = 1;
-    ctx.fillRect(14, 98, 92, 2);
   },
 
   bindMenu: function () {
@@ -135,13 +128,6 @@ var UI = {
 
   refreshMenu: function () {
     var d = Storage.data;
-    var name = TG.userName();
-    var note = 'Открыто уровней: ' + Math.min(d.maxLevel, Waves.total) + ' из ' + Waves.total;
-    if (d.campaignDone) note = 'Кампания пройдена';
-    if (d.endlessBest) note += ' · рекорд: ' + d.endlessBest + ' волн';
-    if (!Storage.available) note += ' · прогресс не сохраняется';
-    if (name) note = name + ', ' + note.charAt(0).toLowerCase() + note.slice(1);
-    this.el.menuNote.textContent = note + ' · v' + APP_VERSION;
     this.el.btnDev.classList.toggle('on', !!d.dev);
     this.el.btnEndless.hidden = !d.campaignDone;
   },
