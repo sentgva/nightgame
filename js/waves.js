@@ -168,73 +168,74 @@ function gen(o) {
    ни одна планета не играется.
    ---------------------------------------------------------------------- */
 
-/* Ядро набора есть на каждой планете: без экономики, стены и базового
-   стрелка планета просто не открывается — пять колонок нечем закрыть. */
-var CORE_UNITS = ['beacon', 'barrier', 'shooter'];
+/* Общего ядра больше нет: у каждой планеты собственная пятёрка —
+   свой добытчик искр, своя стена, свой стрелок и два специалиста под
+   её механику. Ни один защитник не встречается на двух планетах. */
+var CORE_UNITS = [];
 
 var PLANETS = [
   {
     id: 1, act: 1, name: 'Ферма', sub: 'Где всё началось', levels: 5,
     color: '#4ADE80', fill: '#16241C', feature: 'fields',
     mechanic: 'Урожай: поле само роняет зерно',
-    roster: ['mine', 'spikes', 'repair'],
-    drip: [['beacon', 'shooter'], ['barrier'], ['mine'], ['spikes'], ['repair']],
+    roster: ['beacon', 'barrier', 'shooter', 'spikes', 'mine'],
+    drip: [['beacon', 'shooter'], ['barrier'], ['spikes'], ['mine'], []],
     desc: 'Тихое поле. Иногда само роняет зерно — лишняя искра не помешает.'
   },
   {
     id: 2, act: 1, name: 'Пепельные пустоши', sub: 'Выжженная земля', levels: 10,
     color: '#F97316', fill: '#2A1A12', feature: 'craters',
     mechanic: 'Кратеры: часть клеток выжжена навсегда',
-    roster: ['shotgun', 'torch', 'umbrella'],
+    roster: ['ashwell', 'obelisk', 'slinger', 'shotgun', 'torch', 'umbrella'],
     desc: 'Часть клеток выжжена. Зонт сбивает плевки, горн разгоняет снаряды.'
   },
   {
     id: 3, act: 1, name: 'Ледяная станция', sub: 'Мороз и тьма', levels: 15,
     color: '#60A5FA', fill: '#152232', feature: 'ice', ring: true,
     mechanic: 'Обледенение: защитник молчит, пока его не отогреют',
-    roster: ['freezer', 'repeater', 'magnet', 'net'],
+    roster: ['condenser', 'icewall', 'repeater', 'freezer', 'magnet'],
     desc: 'Защитники леденеют — коснись, чтобы отогреть. Здесь открывается третья ступень улучшений.'
   },
   {
     id: 4, act: 2, name: 'Джунгли', sub: 'Второй круг', levels: 5,
     color: '#22C55E', fill: '#132A1B', feature: 'fields',
     mechanic: 'Заросли: клетку надо расчистить тапом',
-    roster: ['chomper', 'spikes', 'fan', 'harpoon'],
+    roster: ['vinepod', 'stump', 'barb', 'chomper', 'fan', 'harpoon'],
     desc: 'Поле заросло. Капкан глотает врага целиком, гарпун тащит его назад.'
   },
   {
     id: 5, act: 2, name: 'Рудник', sub: 'Под землёй', levels: 10,
     color: '#D97706', fill: '#2A1E0E', feature: 'craters',
     mechanic: 'Обвалы: свободные клетки пропадают прямо в бою',
-    roster: ['mortar', 'pendulum', 'shotgun', 'repair'],
+    roster: ['miner', 'prop', 'jack', 'mortar', 'pendulum', 'repair'],
     desc: 'Своды обваливаются. Мортира кроет площадь, маятник косит три колонки.'
   },
   {
     id: 6, act: 2, name: 'Улей', sub: 'Живая стена', levels: 15,
     color: '#84CC16', fill: '#1E2A10', feature: 'fields',
     mechanic: 'Споры: темп стрельбы падает вдвое',
-    roster: ['laser', 'tesla', 'net', 'fan'],
+    roster: ['sporepod', 'tarwall', 'sting', 'laser', 'tesla', 'net'],
     desc: 'Споры душат темп. Лазер прошивает колонку, молния бьёт цепью.'
   },
   {
     id: 7, act: 3, name: 'Разлом', sub: 'Третий круг', levels: 5,
     color: '#E879F9', fill: '#281630', feature: 'craters',
     mechanic: 'Тьма: по полю ходит полоса, в которой врага не видно',
-    roster: ['freezer', 'chomper', 'torch', 'umbrella'],
+    roster: ['glowfly', 'monolith', 'ray', 'lantern', 'cutter', 'anchor'],
     desc: 'По полю ходит полоса тьмы. В ней враг виден только по глазам.'
   },
   {
     id: 8, act: 3, name: 'Печь', sub: 'Жар и пепел', levels: 10,
     color: '#EF4444', fill: '#2A1414', feature: 'craters',
     mechanic: 'Метеоры: клетка светится, потом по ней бьёт',
-    roster: ['mortar', 'pendulum', 'tesla', 'magnet'],
+    roster: ['heatsink', 'shieldwall', 'smelter', 'rodtower', 'hammer'],
     desc: 'Метеоры бьют по клеткам. Кольцо загорается заранее — успей убрать юнита.'
   },
   {
     id: 9, act: 3, name: 'Бездна', sub: 'Конец пути', levels: 15,
     color: '#818CF8', fill: '#1A1B33', feature: 'ice', ring: true,
     mechanic: 'Аномалия: колонка защитников замолкает',
-    roster: ['laser', 'repeater', 'harpoon', 'mine'],
+    roster: ['resonator', 'voidwall', 'disruptor', 'stabilizer', 'singular'],
     desc: 'Аномалия глушит целые колонки. Последние пятнадцать ночей.'
   }
 ];
@@ -293,7 +294,7 @@ var LEVELS = [].concat(
              4: 'Ревун разгоняет всех вокруг себя' },
     pool: [['walker', 1, 2], ['runner', 1, 2], ['jumper', 2, 2], ['carrier', 3, 2], ['howler', 3, 2]],
     base: [4.5, 6.5], growth: 1.15, gap: 2.2,
-    sparks: [350, 400], hp: [1.42, 1.55],
+    sparks: [375, 425], hp: [1.34, 1.46],
     bosses: { 5: { wave: 10, count: 1, hpMul: 1.3 } }
   }),
   gen({

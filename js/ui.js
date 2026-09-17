@@ -527,9 +527,89 @@ var UI = {
   buildCodex: function () {
     var list = this.el.codexList;
     list.innerHTML = '';
-    for (var i = 0; i < UNIT_ORDER.length; i++) {
-      list.appendChild(this.makeCodexItem(UNIT_ORDER[i]));
+
+    // Сперва планеты: своя механика и своя пятёрка защитников
+    for (var p = 0; p < PLANETS.length; p++) {
+      list.appendChild(this.makePlanetCodex(PLANETS[p]));
     }
+  },
+
+  /* Карточка планеты: механика, описание и разбор её набора */
+  makePlanetCodex: function (planet) {
+    var self = this;
+    var item = document.createElement('div');
+    item.className = 'codex-item';
+
+    var head = document.createElement('div');
+    head.className = 'codex-head';
+
+    var mark = document.createElement('div');
+    mark.className = 'codex-planet-mark';
+    mark.textContent = planet.id;
+
+    var meta = document.createElement('div');
+    meta.className = 'codex-meta';
+    meta.innerHTML = '<div class="codex-name">' + planet.name + '</div>' +
+      '<div class="codex-role">' + planet.mechanic + '</div>';
+
+    var count = document.createElement('div');
+    count.className = 'codex-cost';
+    count.textContent = Waves.ofPlanet(planet.id).length + ' ур.';
+
+    head.appendChild(mark);
+    head.appendChild(meta);
+    head.appendChild(count);
+
+    var body = document.createElement('div');
+    body.className = 'codex-body';
+
+    var desc = document.createElement('div');
+    desc.className = 'codex-planet-desc';
+    desc.textContent = planet.desc;
+    body.appendChild(desc);
+
+    var units = CORE_UNITS.concat(planet.roster);
+    for (var i = 0; i < units.length; i++) {
+      body.appendChild(this.makeCodexUnitBlock(units[i]));
+    }
+
+    head.addEventListener('click', function () { item.classList.toggle('open'); });
+    item.appendChild(head);
+    item.appendChild(body);
+    return item;
+  },
+
+  /* Защитник внутри карточки планеты: сводка и три ступени по тапу */
+  makeCodexUnitBlock: function (typeId) {
+    var def = UNIT_TYPES[typeId];
+    var block = document.createElement('div');
+    block.className = 'codex-unit';
+
+    var head = document.createElement('div');
+    head.className = 'codex-unit-head';
+    head.appendChild(this.unitCanvas(typeId, 1, 36, typeId === 'mine' ? 72 : 42));
+
+    var meta = document.createElement('div');
+    meta.className = 'codex-meta';
+    meta.innerHTML = '<div class="codex-name">' + def.name + '</div>' +
+      '<div class="codex-role">' + def.role + '</div>';
+    var cost = document.createElement('div');
+    cost.className = 'codex-cost';
+    cost.textContent = def.cost;
+    head.appendChild(meta);
+    head.appendChild(cost);
+
+    var tiers = document.createElement('div');
+    tiers.className = 'codex-tiers';
+    for (var lv = 1; lv <= 3; lv++) tiers.appendChild(this.makeCodexTier(typeId, lv));
+
+    head.addEventListener('click', function (e) {
+      e.stopPropagation();
+      block.classList.toggle('open');
+    });
+    block.appendChild(head);
+    block.appendChild(tiers);
+    return block;
   },
 
   unitCanvas: function (typeId, level, box, cell) {

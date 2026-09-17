@@ -56,6 +56,7 @@ var Game = {
   cardCd: {},
   selected: null, lastPlaceTs: 0, menuUnit: null,
   iceT: 0, collapseT: 0, sporeT: 0, meteorT: 0, glitchT: 0,
+  litCols: [1, 1, 1, 1, 1],
   meteors: [], bolts: [], darkY: 0, harvestT: 0,
   dev: false, devImmortal: true,
   shake: 0, edgeFlash: 0,
@@ -208,6 +209,7 @@ var Game = {
       if (this.cardCd[id] > 0) this.cardCd[id] = Math.max(0, this.cardCd[id] - dt);
     }
 
+    this.stepLight();
     this.stepUnits(dt);
     this.stepEnemies(dt);
     this.stepProjectiles(dt);
@@ -241,7 +243,11 @@ var Game = {
       if (u.spawnT < 1) u.spawnT = Math.min(1, u.spawnT + dt / 0.2);
       if (u.flash > 0) u.flash -= dt / 0.08;
       if (u.hurt > 0) u.hurt -= dt;
-      if (u.frozen > 0) { u.frozen = Math.max(0, u.frozen - dt); return; }
+      if (u.frozen > 0) {
+        u.frozen = Math.max(0, u.frozen - dt);
+        if (u.frozen === 0) self.ecoEvent('thaw', u);
+        return;
+      }
       if (u.stunned > 0) { u.stunned = Math.max(0, u.stunned - dt); return; }
       if (u.spored > 0) u.spored = Math.max(0, u.spored - dt);
 
@@ -301,7 +307,7 @@ var Game = {
       }
 
       // Маятник: косит вплотную свою и соседние колонки
-      if (u.def.sweep) {
+      if (u.def.sweep || u.def.slam) {
         u.cd -= dt;
         if (u.cd > 0) return;
         var hitAny = self.sweepStrike(u, col, row);
@@ -329,13 +335,16 @@ var Game = {
         return;
       }
 
-      if (u.type === 'beacon') {
-        if (self.phase !== 'wave') return;   // в паузе маяки не работают
+      if (u.def.produce) {
+        if (self.phase !== 'wave') return;   // в паузе добытчики не работают
         u.prodT -= dt;
         if (u.prodT <= 0) {
-          u.prodT = u.def.interval;
+          u.prodT = self.ecoInterval(u, col, row);
           u.flash = 1;
-          self.dropSpark(Grid.centerX(col), Grid.centerY(row), Math.round(Units.stat(u, 'produce')));
+          var amount = Units.stat(u, 'produce');
+          // Светляк в полосе тьмы работает вдвое сильнее
+          if (u.def.ecoDark && self.inDark(Grid.centerY(row))) amount *= u.def.ecoDark;
+          self.dropSpark(Grid.centerX(col), Grid.centerY(row), Math.round(amount));
         }
         return;
       }
@@ -426,6 +435,7 @@ var Game = {
     p.splash = u.def.splash || 0;
     p.pull = u.def.pull || 0;
     p.pierce = !!u.def.pierce;
+    p.pierceGuard = !!u.def.pierceGuard;
     p.hits = p.hits || [];
     p.hits.length = 0;
     p.slow = u.def.slow || 0;
@@ -520,6 +530,7 @@ var Game = {
 
       var slowMul = e.slowT > 0 ? 0.6 : 1;
       if (e.hasted) slowMul *= e.hasted;
+      slowMul *= this.anchorPull(e);
       var blocker = this.findBlockingUnit(e);
       e.blocked = !!blocker;
 
@@ -564,6 +575,7 @@ var Game = {
         if (e.atkCd <= 0) {
           e.atkCd = 1 / e.def.atkRate;
           e.attacking = 0.3;
+          if (blocker.def.chill) e.slowT = Math.max(e.slowT, blocker.def.chill);
           this.damageUnit(blocker, e.def.damage);
         }
         continue;
@@ -787,7 +799,7 @@ var Game = {
         if (p.pierce) {
           if (p.hits.indexOf(e) !== -1) continue;
           p.hits.push(e);
-          this.hitEnemy(e, p.dmg);
+          this.hitEnemy(e, p.dmg, p.pierceGuard);
           this.spawnParticles(p.x, p.y, 2, p.color, 90, 0.2, true);
           continue;
         }
@@ -795,7 +807,7 @@ var Game = {
         if (p.slow > 0) { e.slowT = Math.max(e.slowT, p.slowTime); }
         if (p.pull > 0) e.y = Math.max(-cell * 0.4, e.y - p.pull * cell);
         if (p.splash > 0) this.splashHit(p, e);
-        else this.hitEnemy(e, p.dmg);
+        else this.hitEnemy(e, p.dmg, p.pierceGuard);
         this.spawnParticles(p.x, p.y, 5, p.color, 130, 0.25, true);
         p.active = false;
         break;
@@ -902,11 +914,13 @@ var Game = {
       this.meteorT -= dt;
       if (this.meteorT <= 0) {
         this.meteorT = every;
-        this.meteors.push({
-          col: Math.floor(Math.random() * Grid.cols),
-          row: Math.floor(Math.random() * Grid.rows),
-          t: CONFIG.meteorWarn
-        });
+        // Громоотвод стягивает метеоры на себя
+        var rods = [];
+        Grid.each(function (u, c, r) { if (u.def.meteorMagnet && !u.dead) rods.push([c, r]); });
+        var target = rods.length
+          ? rods[Math.floor(Math.random() * rods.length)]
+          : [Math.floor(Math.random() * Grid.cols), Math.floor(Math.random() * Grid.rows)];
+        this.meteors.push({ col: target[0], row: target[1], t: CONFIG.meteorWarn });
       }
     }
     for (var i = this.meteors.length - 1; i >= 0; i--) {
@@ -917,7 +931,8 @@ var Game = {
       Sound.play('mine');
       this.spawnParticles(x, y, 12, PAL.ash, 230, 0.4, false);
       var u = Grid.get(m.col, m.row);
-      if (u && !u.dead) this.damageUnit(u, CONFIG.meteorDamage);
+      if (u && !u.dead && !u.def.meteorProof) this.damageUnit(u, CONFIG.meteorDamage);
+      this.ecoEvent('meteor');
       for (var j = 0; j < this.enemies.length; j++) {
         var e = this.enemies[j];
         if (e.dead || !this.enemyCoversColumn(e, m.col)) continue;
@@ -951,6 +966,11 @@ var Game = {
     this.glitchT = every;
 
     var col = Math.floor(Math.random() * Grid.cols);
+    // Стабилизатор держит свою колонку
+    for (var sr = 0; sr < Grid.rows; sr++) {
+      var su = Grid.get(col, sr);
+      if (su && !su.dead && su.def.antiGlitch) { UI.toast('Стабилизатор погасил аномалию'); return; }
+    }
     var any = false;
     for (var r = 0; r < Grid.rows; r++) {
       var u = Grid.get(col, r);
@@ -958,15 +978,83 @@ var Game = {
       u.stunned = CONFIG.glitchTime;
       any = true;
     }
+    this.ecoEvent('glitch');
     if (any) {
       Sound.play('deny');
       UI.toast('Аномалия: колонка ' + (col + 1));
     }
   },
 
+  /* Сколько ждать следующую порцию. Лоза считает заросли вокруг себя:
+     чем гуще поросло, тем чаще плодоносит. */
+  ecoInterval: function (u, col, row) {
+    var base = u.def.interval;
+    if (!u.def.ecoVines) return base;
+    var around = [[0, -1], [0, 1], [-1, 0], [1, 0]];
+    var n = 0;
+    for (var i = 0; i < around.length; i++) {
+      if (Grid.isVine(col + around[i][0], row + around[i][1])) n++;
+    }
+    return base * Math.max(0.35, 1 - u.def.ecoVines * n / 4);
+  },
+
+  /* Накрыта ли эта высота полосой тьмы */
+  inDark: function (y) {
+    if (!this.level || !this.level.darkBand) return false;
+    var band = Grid.cell * 2.2;
+    var top = this.darkY - Grid.cell * 1.5;
+    return y > top && y < top + band;
+  },
+
+  /* Якорь тормозит всех в своей колонке ниже себя */
+  anchorPull: function (e) {
+    var slow = 0;
+    for (var c = e.col; c < e.col + e.width; c++) {
+      for (var r = 0; r < Grid.rows; r++) {
+        var u = Grid.get(c, r);
+        if (!u || u.dead || !u.def.auraSlow) continue;
+        var cy = Grid.centerY(r);
+        if (cy <= e.y) continue;                       // якорь должен быть впереди
+        if (cy - e.y > u.def.range * Grid.cell) continue;
+        slow = Math.max(slow, Units.stat(u, 'auraSlow'));
+      }
+    }
+    return 1 - slow;
+  },
+
+  /* Добытчик искр реагирует на событие своей планеты: обвал, споры,
+     метеор, аномалию или собственную разморозку. Один общий механизм,
+     потому что отличаются только повод и размер премии. */
+  ecoEvent: function (kind, only) {
+    var self = this;
+    if (only) {
+      if (only.def.ecoOn !== kind || only.dead) return;
+      self.gain(only.def.ecoBonus, Grid.centerX(only.col), Grid.centerY(only.row));
+      only.flash = 1;
+      return;
+    }
+    Grid.each(function (u) {
+      if (u.dead || u.def.ecoOn !== kind) return;
+      u.flash = 1;
+      self.gain(u.def.ecoBonus, Grid.centerX(u.col), Grid.centerY(u.row));
+    });
+  },
+
+  /* Колонки, подсвеченные фонарём: враги в них получают больше урона */
+  stepLight: function () {
+    for (var c = 0; c < Grid.cols; c++) this.litCols[c] = 1;
+    var self = this;
+    Grid.each(function (u, col) {
+      if (u.dead || !u.def.litColumn) return;
+      var mul = Units.stat(u, 'litColumn');
+      if (mul > self.litCols[col]) self.litCols[col] = mul;
+    });
+  },
+
   /* Урон врагу с учётом ауры щитоносца */
-  hitEnemy: function (e, amount) {
-    if (e.guarded) amount *= e.guarded;
+  hitEnemy: function (e, amount, ignoreGuard) {
+    if (e.guarded && !ignoreGuard) amount *= e.guarded;
+    amount *= this.litCols[e.col] || 1;
     if (Enemies.hurt(e, amount)) { this.killEnemy(e); return true; }
     return false;
   },
@@ -1058,10 +1146,14 @@ var Game = {
     if (this.collapseT > 0) return;
     this.collapseT = every;
 
+    // Колонка с крепью обвалов не знает
+    var safe = {};
+    Grid.each(function (u, c) { if (u.def.noCollapse && !u.dead) safe[c] = true; });
+
     var free = [];
     for (var r = 1; r < Grid.rows; r++) {
       for (var c = 0; c < Grid.cols; c++) {
-        if (Grid.isFree(c, r)) free.push([c, r]);
+        if (!safe[c] && Grid.isFree(c, r)) free.push([c, r]);
       }
     }
     if (free.length <= Grid.cols) return;        // совсем зажимать поле не будем
@@ -1070,6 +1162,7 @@ var Game = {
     Grid.blocked[Grid.idx(pick[0], pick[1])] = true;
     Sound.play('mine');
     this.spawnParticles(Grid.centerX(pick[0]), Grid.centerY(pick[1]), 8, PAL.ash, 160, 0.4, false);
+    this.ecoEvent('collapse');
     UI.toast('Обвал');
   },
 
@@ -1089,6 +1182,7 @@ var Game = {
     var victim = list[Math.floor(Math.random() * list.length)];
     victim.spored = CONFIG.sporeTime;
     this.spawnParticles(Grid.centerX(victim.col), Grid.centerY(victim.row), 6, '#84CC16', 120, 0.4, false);
+    this.ecoEvent('spore');
   },
 
   /* Станция: раз в несколько секунд случайный защитник покрывается льдом
@@ -1379,6 +1473,7 @@ var Game = {
     var chilled = Grid.get(c.col, c.row);
     if (chilled && chilled.frozen > 0) {
       chilled.frozen = 0;
+      this.ecoEvent('thaw', chilled);
       Sound.play('pick');
       TG.haptic('light');
       this.spawnParticles(Grid.centerX(c.col), Grid.centerY(c.row), 7, PAL.ice, 140, 0.3, false);
@@ -1421,7 +1516,10 @@ var Game = {
     if (!typeId) return;
     var def = UNIT_TYPES[typeId];
 
-    if (!Grid.isFree(col, row)) { UI.toast('Клетка занята'); return; }
+    // Колодец живёт только в выжженной клетке — там, где другим нельзя
+    if (def.onCrater) {
+      if (!Grid.isBlocked(col, row) || Grid.get(col, row)) { UI.toast('Только в кратер'); return; }
+    } else if (!Grid.isFree(col, row)) { UI.toast('Клетка занята'); return; }
     if (this.sparks < def.cost) { UI.shakeCard(typeId); Sound.play('deny'); this.deselect(); return; }
 
     this.lastPlaceTs = now;

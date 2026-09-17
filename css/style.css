@@ -279,6 +279,26 @@ html, body {
 .codex-name { font-size: 14px; }
 .codex-role { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
 .codex-cost { font-size: 11px; color: var(--spark); }
+.codex-planet-mark {
+  width: 34px; height: 34px; flex: 0 0 34px;
+  border-radius: 10px; border: 1px solid var(--ice);
+  color: var(--ice); background: var(--fill-ice);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; font-weight: 500;
+}
+.codex-planet-desc {
+  font-size: 11px; color: var(--text-muted); line-height: 1.5;
+  padding: 10px 0 4px; border-top: 1px solid var(--grid-line);
+}
+.codex-unit { border-top: 1px solid var(--grid-line); }
+.codex-unit-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 0; cursor: pointer;
+}
+.codex-unit-head canvas { display: block; flex: 0 0 36px; }
+.codex-tiers { display: none; padding-left: 8px; }
+.codex-unit.open .codex-tiers { display: block; }
+
 .codex-body { display: none; padding: 0 14px 14px; }
 .codex-item.open .codex-body { display: block; }
 .codex-tier {

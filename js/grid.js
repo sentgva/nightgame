@@ -40,6 +40,47 @@ var PAL = {
   uPendulum:  '#9333EA',  uPendulumF: '#1E1230',
   uNet:       '#65A30D',  uNetF:      '#1A2410',
 
+  /* Планета 2 — пепел и охра */
+  uAshwell:   '#FDBA74',  uAshwellF:  '#2A1A10',
+  uObelisk:   '#A16207',  uObeliskF:  '#241A08',
+  /* Планета 3 — лёд */
+  uCondenser: '#0EA5E9',  uCondenserF:'#0C2434',
+  uIcewall:   '#BAE6FD',  uIcewallF:  '#122834',
+  /* Планета 4 — джунгли */
+  uVinepod:   '#22C55E',  uVinepodF:  '#0E2618',
+  uStump:     '#84CC16',  uStumpF:    '#1C2410',
+  /* Планета 5 — рудник */
+  uMiner:     '#D97706',  uMinerF:    '#281C08',
+  uProp:      '#B45309',  uPropF:     '#241808',
+  /* Планета 6 — улей */
+  uSporepod:  '#BEF264',  uSporepodF: '#1E2810',
+  uTarwall:   '#4D7C0F',  uTarwallF:  '#161E0C',
+  /* Планета 7 — разлом */
+  uGlowfly:   '#F0ABFC',  uGlowflyF:  '#2A1430',
+  uMonolith:  '#A78BFA',  uMonolithF: '#1C1630',
+  uLantern:   '#FDE047',  uLanternF:  '#2A2410',
+  uCutter:    '#F472B6',  uCutterF:   '#2A1220',
+  uAnchor:    '#818CF8',  uAnchorF:   '#161A30',
+  /* Планета 8 — печь */
+  uHeatsink:  '#F87171',  uHeatsinkF: '#2A1414',
+  uShieldwall:'#B91C1C',  uShieldwallF:'#240E0E',
+  uSmelter:   '#FDA4AF',  uSmelterF:  '#2A1218',
+  uRodtower:  '#FCD34D',  uRodtowerF: '#2A2208',
+  uHammer:    '#EF4444',  uHammerF:   '#261010',
+  /* Планета 9 — бездна */
+  uResonator: '#A5B4FC',  uResonatorF:'#181C34',
+  uVoidwall:  '#6366F1',  uVoidwallF: '#141634',
+  uDisruptor: '#C4B5FD',  uDisruptorF:'#1E1834',
+  uStabilizer:'#67E8F9',  uStabilizerF:'#0E2630',
+  uSingular:  '#7C3AED',  uSingularF: '#1A0E30',
+
+  /* Базовые стрелки планет 2 и 4-7 */
+  uSlinger:   '#EA580C',  uSlingerF:  '#2A1608',
+  uBarb:      '#4ADE80',  uBarbF:     '#12261A',
+  uJack:      '#EAB308',  uJackF:     '#262008',
+  uSting:     '#CDDC39',  uStingF:    '#22280C',
+  uRay:       '#E879F9',  uRayF:      '#2A1032',
+
   fillAlly:   '#16241C',
   fillEnemy:  '#181F2B',
   fillArmor:  '#1C242F',
