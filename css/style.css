@@ -77,6 +77,21 @@ html, body {
   flex-direction: column;
 }
 
+/* Ночное небо под всем интерфейсом: редкие звёзды вместо плоской заливки.
+   Точки расставлены вручную — регулярная сетка читалась бы как текстура. */
+body::before {
+  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background-image:
+    radial-gradient(1px 1px at 12% 18%, rgba(232,237,242,.20), transparent 100%),
+    radial-gradient(1px 1px at 78% 9%,  rgba(232,237,242,.14), transparent 100%),
+    radial-gradient(1px 1px at 33% 61%, rgba(232,237,242,.12), transparent 100%),
+    radial-gradient(1px 1px at 88% 44%, rgba(232,237,242,.18), transparent 100%),
+    radial-gradient(1px 1px at 57% 83%, rgba(232,237,242,.10), transparent 100%),
+    radial-gradient(1px 1px at 5% 74%,  rgba(232,237,242,.14), transparent 100%),
+    radial-gradient(1px 1px at 68% 29%, rgba(232,237,242,.10), transparent 100%);
+}
+#app { z-index: 1; }
+
 .hidden { display: none !important; }
 
 /* ---------- Экраны ---------- */
@@ -99,7 +114,11 @@ html, body {
   min-height: 44px;
 }
 .btn:active { transform: scale(.975); }
-.btn.primary { border-color: var(--ally); color: var(--ally); background: var(--fill-ally); }
+.btn.primary {
+  border-color: var(--ally); color: var(--ally); background: var(--fill-ally);
+  box-shadow: 0 0 0 4px rgba(74, 222, 128, .07);
+}
+.btn.primary:active { box-shadow: 0 0 0 2px rgba(74, 222, 128, .12); }
 .btn.ghost { background: transparent; border-color: transparent; color: var(--text-muted); }
 .btn.small { font-size: 11px; font-weight: 400; padding: 9px 14px; min-height: 36px; }
 .btn.tiny {
@@ -122,8 +141,12 @@ html, body {
   padding: 24px; gap: 4px; text-align: center;
 }
 .menu-mark { margin-bottom: 10px; }
-.title { font-size: 22px; font-weight: 500; margin: 0; letter-spacing: .2px; }
-.subtitle { font-size: 11px; color: var(--text-muted); margin: 4px 0 26px; letter-spacing: 2px; }
+.title { font-size: 26px; font-weight: 500; margin: 0; letter-spacing: .4px; }
+.subtitle {
+  font-size: 11px; color: var(--text-muted); margin: 8px 0 30px;
+  letter-spacing: 4px; text-transform: uppercase;
+}
+.menu-mark { margin-bottom: 2px; }
 .menu-buttons { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 260px; }
 
 /* ---------- Тумблер ---------- */
@@ -243,7 +266,10 @@ html, body {
 }
 .level-node:active { transform: scale(.99); }
 .level-node.locked { background: var(--card-locked); border-color: transparent; color: var(--text-muted); cursor: default; }
-.level-node.current { border-color: var(--ally); }
+.level-node.current {
+  border-color: var(--ally);
+  box-shadow: 0 0 0 3px rgba(74, 222, 128, .07);
+}
 .level-num {
   width: 30px; height: 30px; flex: 0 0 30px;
   border-radius: 9px; border: 1px solid var(--grid-line);
@@ -383,20 +409,29 @@ html, body {
 
 .card {
   position: relative; flex: 0 0 66px;
-  width: 66px; height: 64px;
+  width: 66px; height: 66px;
   background: var(--card-bg); border: 1px solid var(--grid-line);
   border-radius: 10px; overflow: hidden;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 1px; cursor: pointer;
   transition: transform .12s ease, border-color .12s ease;
 }
+.card::before {
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 3px;
+  background: var(--accent, var(--grid-line));
+}
+.card.locked::before { opacity: .3; }
 .card canvas { display: block; }
 .card-name { font-size: 11px; line-height: 1.1; color: var(--text-main); }
 .card-cost { font-size: 11px; line-height: 1.1; color: var(--spark); }
 .card.locked { background: var(--card-locked); border-color: transparent; }
 .card.locked .card-name, .card.locked .card-cost { color: var(--text-muted); }
 .card.locked canvas { opacity: .35; }
-.card.selected { border-color: var(--text-main); transform: translateY(-3px); }
+.card.selected {
+  border-color: var(--accent, var(--text-main));
+  transform: translateY(-4px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, .5);
+}
 .card.shake { animation: shake-card .2s ease; }
 @keyframes shake-card {
   0%,100% { transform: translateX(0); }

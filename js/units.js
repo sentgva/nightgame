@@ -49,6 +49,36 @@ var Draw = {
     ctx.stroke();
     ctx.restore();
   },
+  /* Гладкий замкнутый контур через опорные точки: кривая идёт по серединам
+     отрезков, а сами точки работают направляющими. Именно это даёт мягкие
+     «живые» формы вместо скруглённых прямоугольников. */
+  smooth: function (ctx, pts) {
+    var n = pts.length;
+    var mx = (pts[n - 1][0] + pts[0][0]) / 2;
+    var my = (pts[n - 1][1] + pts[0][1]) / 2;
+    ctx.beginPath();
+    ctx.moveTo(mx, my);
+    for (var i = 0; i < n; i++) {
+      var cur = pts[i], nxt = pts[(i + 1) % n];
+      ctx.quadraticCurveTo(cur[0], cur[1], (cur[0] + nxt[0]) / 2, (cur[1] + nxt[1]) / 2);
+    }
+    ctx.closePath();
+  },
+
+  /* Стебель: изогнутая ножка, на которой сидит голова */
+  stalk: function (ctx, x1, y1, cx, cy, x2, y2, w, color, alpha) {
+    ctx.save();
+    ctx.globalAlpha = alpha === undefined ? 0.55 : alpha;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = w;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.quadraticCurveTo(cx, cy, x2, y2);
+    ctx.stroke();
+    ctx.restore();
+  },
+
   /* Полоска-индикатор со скруглёнными торцами */
   bar: function (ctx, x, y, w, h, pct, bgColor, fgColor) {
     var r = h / 2;
@@ -521,587 +551,669 @@ var Units = {
   },
 
   shapes: {
-    /* Маяк: приземистая башня с пульсирующей линзой и двумя лучами */
+    /* Маяк: тяжёлая голова-фонарь на клонящемся стебле. Силуэт — подсолнух */
     beacon: function (ctx, u, k, t, opts, time) {
+      var sway = Math.sin(time * 1.1) * u * 0.02;
       ctx.lineWidth = Math.max(1, k);
-      var pulse = 0.5 + 0.5 * Math.sin(time * 2.2);
+      Draw.stalk(ctx, -u * 0.04, u * 0.32, u * 0.10, u * 0.06,
+        sway, -u * 0.06, 3 * k, t.color, 0.5);
 
-      // Основание
-      ctx.fillStyle = t.fill;
-      ctx.strokeStyle = t.color;
-      Draw.poly(ctx, [
-        [-u * 0.21, u * 0.28], [u * 0.21, u * 0.28],
-        [u * 0.14, -u * 0.12], [-u * 0.14, -u * 0.12]
-      ]);
-      ctx.fill(); ctx.stroke();
-
-      // Поясок на башне
-      ctx.globalAlpha = 0.55;
-      ctx.beginPath();
-      ctx.moveTo(-u * 0.175, u * 0.09); ctx.lineTo(u * 0.175, u * 0.09);
-      ctx.stroke();
-      ctx.globalAlpha = 1;
-
-      // Фонарь
-      Draw.roundRect(ctx, -u * 0.15, -u * 0.30, u * 0.30, u * 0.19, u * 0.04);
-      ctx.fill(); ctx.stroke();
-
-      // Линза: ореол пульсирует, ядро горит ровно
-      ctx.fillStyle = t.color;
-      ctx.globalAlpha = 0.18 + 0.22 * pulse;
-      Draw.circle(ctx, 0, -u * 0.205, u * 0.115 + u * 0.02 * pulse);
-      ctx.fill();
-      ctx.globalAlpha = 1;
-      Draw.circle(ctx, 0, -u * 0.205, u * 0.055);
-      ctx.fill();
-
-      // Лучи в стороны
-      ctx.strokeStyle = t.color;
-      ctx.globalAlpha = 0.25 + 0.25 * pulse;
-      ctx.lineWidth = Math.max(1, 1.2 * k);
-      ctx.beginPath();
-      ctx.moveTo(-u * 0.21, -u * 0.245); ctx.lineTo(-u * 0.32, -u * 0.275);
-      ctx.moveTo(u * 0.21, -u * 0.245); ctx.lineTo(u * 0.32, -u * 0.275);
-      ctx.stroke();
-      ctx.globalAlpha = 1;
-    },
-
-    /* Стрелок: корпус с плечами, ствол вверх и светящийся прицел */
-    shooter: function (ctx, u, k, t, opts, time) {
-      ctx.lineWidth = Math.max(1, k);
-
-      // Ствол
-      ctx.fillStyle = t.fill;
-      ctx.strokeStyle = t.color;
-      Draw.roundRect(ctx, -u * 0.055, -u * 0.34, u * 0.11, u * 0.20, u * 0.025);
-      ctx.fill(); ctx.stroke();
-
-      // Корпус
-      Units.body(ctx, t, opts, u * 0.46, u * 0.42, u * 0.11, u * 0.04);
-
-      // Плечи-опоры
-      ctx.fillStyle = t.color;
-      ctx.globalAlpha = 0.5;
-      ctx.fillRect(-u * 0.29, -u * 0.06, u * 0.06, u * 0.16);
-      ctx.fillRect(u * 0.23, -u * 0.06, u * 0.06, u * 0.16);
-      ctx.globalAlpha = 1;
-
-      // Прицел
-      ctx.globalAlpha = 0.22;
-      Draw.circle(ctx, 0, u * 0.05, u * 0.105);
-      ctx.fill();
-      ctx.globalAlpha = 1;
-      Draw.circle(ctx, 0, u * 0.05, u * 0.05);
-      ctx.fill();
-    },
-
-    /* Барьер: широкий блок из плит с заклёпками */
-    barrier: function (ctx, u, k, t, opts, time) {
-      ctx.lineWidth = Math.max(1, k);
-      Units.body(ctx, t, opts, u * 0.74, u * 0.44, u * 0.07, u * 0.03);
-
-      // Вертикальные швы между плитами
-      ctx.strokeStyle = t.color;
-      ctx.globalAlpha = 0.4;
-      ctx.lineWidth = Math.max(1, k);
-      ctx.beginPath();
-      ctx.moveTo(-u * 0.125, -u * 0.17); ctx.lineTo(-u * 0.125, u * 0.23);
-      ctx.moveTo(u * 0.125, -u * 0.17); ctx.lineTo(u * 0.125, u * 0.23);
-      ctx.stroke();
-
-      // Заклёпки по углам
-      ctx.globalAlpha = 0.75;
-      ctx.fillStyle = t.color;
-      var rx = u * 0.30, ry1 = -u * 0.12, ry2 = u * 0.18;
-      Draw.circle(ctx, -rx, ry1, u * 0.022); ctx.fill();
-      Draw.circle(ctx, rx, ry1, u * 0.022); ctx.fill();
-      Draw.circle(ctx, -rx, ry2, u * 0.022); ctx.fill();
-      Draw.circle(ctx, rx, ry2, u * 0.022); ctx.fill();
-      ctx.globalAlpha = 1;
-    },
-
-    /* Морозилка: шестигранник со снежинкой и инеем */
-    freezer: function (ctx, u, k, t, opts, time) {
-      ctx.lineWidth = Math.max(1, k);
-      ctx.fillStyle = opts.hurt ? '#2A323C' : t.fill;
-      ctx.strokeStyle = t.color;
-      Draw.ngon(ctx, 0, 0, u * 0.29, 6, Math.PI / 6);
-      ctx.fill(); ctx.stroke();
-
-      // Снежинка: три луча через центр
-      ctx.strokeStyle = t.color;
-      ctx.lineWidth = Math.max(1, 1.3 * k);
-      var r = u * 0.155;
-      ctx.beginPath();
-      for (var i = 0; i < 3; i++) {
-        var a = i * Math.PI / 3 + Math.PI / 6;
-        ctx.moveTo(-Math.cos(a) * r, -Math.sin(a) * r);
-        ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
-      }
-      ctx.stroke();
-
-      // Иней: точка в центре и лёгкое мерцание по кромке
-      ctx.fillStyle = t.color;
-      Draw.circle(ctx, 0, 0, u * 0.035); ctx.fill();
-      ctx.globalAlpha = 0.25 + 0.2 * Math.sin(time * 1.7);
-      Draw.glowCircle(ctx, 0, 0, u * 0.29, t.color, 1, 2 * k);
-      ctx.globalAlpha = 1;
-    },
-
-    /* Дробовик: приземистый корпус с двумя стволами */
-    shotgun: function (ctx, u, k, t, opts, time) {
-      ctx.lineWidth = Math.max(1, k);
-
-      // Два ствола
-      ctx.fillStyle = t.fill;
-      ctx.strokeStyle = t.color;
-      Draw.roundRect(ctx, -u * 0.13, -u * 0.32, u * 0.10, u * 0.18, u * 0.02);
-      ctx.fill(); ctx.stroke();
-      Draw.roundRect(ctx, u * 0.03, -u * 0.32, u * 0.10, u * 0.18, u * 0.02);
-      ctx.fill(); ctx.stroke();
-
-      // Корпус трапецией — шире книзу
-      ctx.fillStyle = opts.hurt ? '#2A323C' : t.fill;
-      Draw.poly(ctx, [
-        [-u * 0.22, -u * 0.16], [u * 0.22, -u * 0.16],
-        [u * 0.29, u * 0.27], [-u * 0.29, u * 0.27]
-      ]);
-      ctx.fill(); ctx.stroke();
-
-      // Затвор
-      ctx.fillStyle = t.color;
-      ctx.globalAlpha = 0.6;
-      ctx.fillRect(-u * 0.15, u * 0.02, u * 0.30, u * 0.045);
-      ctx.globalAlpha = 1;
-    },
-
-    /* Дуплет: широкий корпус с двумя параллельными стволами */
-    repeater: function (ctx, u, k, t, opts, time) {
-      ctx.lineWidth = Math.max(1, k);
-      ctx.fillStyle = t.fill;
-      ctx.strokeStyle = t.color;
-
-      Draw.roundRect(ctx, -u * 0.155, -u * 0.36, u * 0.11, u * 0.24, u * 0.025);
-      ctx.fill(); ctx.stroke();
-      Draw.roundRect(ctx, u * 0.045, -u * 0.36, u * 0.11, u * 0.24, u * 0.025);
-      ctx.fill(); ctx.stroke();
-
-      Units.body(ctx, t, opts, u * 0.52, u * 0.40, u * 0.11, u * 0.05);
-
-      // Два прицела
-      ctx.fillStyle = t.color;
-      ctx.globalAlpha = 0.25;
-      Draw.circle(ctx, -u * 0.10, u * 0.06, u * 0.085); ctx.fill();
-      Draw.circle(ctx, u * 0.10, u * 0.06, u * 0.085); ctx.fill();
-      ctx.globalAlpha = 1;
-      Draw.circle(ctx, -u * 0.10, u * 0.06, u * 0.04); ctx.fill();
-      Draw.circle(ctx, u * 0.10, u * 0.06, u * 0.04); ctx.fill();
-    },
-
-    /* Веер: три ствола, расходящиеся в стороны */
-    fan: function (ctx, u, k, t, opts, time) {
-      ctx.lineWidth = Math.max(1, k);
-      ctx.strokeStyle = t.color;
-      ctx.fillStyle = t.fill;
-
-      // Стволы веером
-      var angles = [-0.42, 0, 0.42];
-      for (var i = 0; i < 3; i++) {
-        ctx.save();
-        ctx.rotate(angles[i]);
-        Draw.roundRect(ctx, -u * 0.045, -u * 0.36, u * 0.09, u * 0.20, u * 0.02);
-        ctx.fill(); ctx.stroke();
-        ctx.restore();
-      }
-
-      Units.body(ctx, t, opts, u * 0.50, u * 0.36, u * 0.10, u * 0.07);
-
-      // Веерная риска на корпусе
-      ctx.strokeStyle = t.color;
-      ctx.globalAlpha = 0.6;
-      ctx.lineWidth = Math.max(1, 1.2 * k);
-      ctx.beginPath();
-      ctx.arc(0, u * 0.10, u * 0.12, Math.PI * 1.15, Math.PI * 1.85);
-      ctx.stroke();
-      ctx.globalAlpha = 1;
-    },
-
-    /* Горн: жаровня с живым языком пламени */
-    torch: function (ctx, u, k, t, opts, time) {
-      ctx.lineWidth = Math.max(1, k);
-      var flick = 0.5 + 0.5 * Math.sin(time * 7.3);
-
-      // Чаша
-      ctx.fillStyle = opts.hurt ? '#2A323C' : t.fill;
-      ctx.strokeStyle = t.color;
-      Draw.poly(ctx, [
-        [-u * 0.26, u * 0.02], [u * 0.26, u * 0.02],
-        [u * 0.17, u * 0.27], [-u * 0.17, u * 0.27]
-      ]);
-      ctx.fill(); ctx.stroke();
-
-      // Ножка
-      ctx.fillStyle = t.color;
-      ctx.globalAlpha = 0.5;
-      ctx.fillRect(-u * 0.10, u * 0.27, u * 0.20, u * 0.04);
-      ctx.globalAlpha = 1;
-
-      // Пламя: внешний язык дышит, ядро ровное
-      ctx.fillStyle = t.color;
-      ctx.globalAlpha = 0.25 + 0.2 * flick;
-      Draw.poly(ctx, [
-        [0, -u * 0.34 - u * 0.04 * flick],
-        [u * 0.13, u * 0.01], [-u * 0.13, u * 0.01]
-      ]);
-      ctx.fill();
-      ctx.globalAlpha = 1;
-      Draw.poly(ctx, [
-        [0, -u * 0.20 - u * 0.03 * flick],
-        [u * 0.06, u * 0.01], [-u * 0.06, u * 0.01]
-      ]);
-      ctx.fill();
-    },
-
-    /* Магнит: подкова с двумя полюсами */
-    magnet: function (ctx, u, k, t, opts, time) {
-      ctx.lineWidth = Math.max(1, k);
-      Units.body(ctx, t, opts, u * 0.50, u * 0.46, u * 0.12, 0);
-
-      // Дуга подковы
-      ctx.strokeStyle = t.color;
-      ctx.lineWidth = Math.max(2, 4 * k);
-      ctx.beginPath();
-      ctx.arc(0, u * 0.03, u * 0.14, Math.PI, Math.PI * 2);
-      ctx.stroke();
-
-      // Полюса
-      ctx.fillStyle = t.color;
-      ctx.fillRect(-u * 0.175, u * 0.03, u * 0.07, u * 0.11);
-      ctx.fillRect(u * 0.105, u * 0.03, u * 0.07, u * 0.11);
-
-      // Поле вокруг — дышит
-      ctx.globalAlpha = 0.12 + 0.12 * (0.5 + 0.5 * Math.sin(time * 2.6));
-      Draw.glowCircle(ctx, 0, 0, u * 0.26, t.color, 1, 3 * k);
-      ctx.globalAlpha = 1;
-    },
-
-    /* Мортира: короткий толстый ствол под углом на станине */
-    mortar: function (ctx, u, k, t, opts, time) {
-      ctx.lineWidth = Math.max(1, k);
-
-      // Станина
-      ctx.fillStyle = opts.hurt ? '#2A323C' : t.fill;
-      ctx.strokeStyle = t.color;
-      Draw.poly(ctx, [
-        [-u * 0.28, u * 0.10], [u * 0.28, u * 0.10],
-        [u * 0.22, u * 0.28], [-u * 0.22, u * 0.28]
-      ]);
-      ctx.fill(); ctx.stroke();
-
-      // Ствол навесом
+      // Лепестки-лучи
       ctx.save();
-      ctx.rotate(-0.28);
-      Draw.roundRect(ctx, -u * 0.105, -u * 0.32, u * 0.21, u * 0.38, u * 0.05);
-      ctx.fill(); ctx.stroke();
-      // Дульный срез
-      ctx.globalAlpha = 0.6;
-      ctx.fillStyle = t.color;
-      ctx.fillRect(-u * 0.08, -u * 0.30, u * 0.16, u * 0.035);
-      ctx.globalAlpha = 1;
+      ctx.globalAlpha = 0.45;
+      ctx.strokeStyle = t.color;
+      ctx.lineWidth = Math.max(1, 2 * k);
+      for (var i = 0; i < 8; i++) {
+        var a = i * Math.PI / 4 + time * 0.25;
+        ctx.beginPath();
+        ctx.moveTo(sway + Math.cos(a) * u * 0.17, -u * 0.17 + Math.sin(a) * u * 0.17);
+        ctx.lineTo(sway + Math.cos(a) * u * 0.27, -u * 0.17 + Math.sin(a) * u * 0.27);
+        ctx.stroke();
+      }
       ctx.restore();
 
-      // Опорные колёса
-      ctx.fillStyle = t.color;
-      ctx.globalAlpha = 0.55;
-      Draw.circle(ctx, -u * 0.21, u * 0.20, u * 0.045); ctx.fill();
-      Draw.circle(ctx, u * 0.21, u * 0.20, u * 0.045); ctx.fill();
-      ctx.globalAlpha = 1;
-    },
-
-    /* Лазер: узкая стойка с линзой и разрядником сверху */
-    laser: function (ctx, u, k, t, opts, time) {
-      ctx.lineWidth = Math.max(1, k);
-      var charge = 0.5 + 0.5 * Math.sin(time * 6);
-
-      // Стойка
-      Units.body(ctx, t, opts, u * 0.34, u * 0.44, u * 0.09, u * 0.06);
-
-      // Излучатель
+      // Голова
       ctx.fillStyle = opts.hurt ? '#2A323C' : t.fill;
       ctx.strokeStyle = t.color;
-      Draw.poly(ctx, [
-        [-u * 0.13, -u * 0.16], [u * 0.13, -u * 0.16],
-        [u * 0.06, -u * 0.34], [-u * 0.06, -u * 0.34]
+      Draw.smooth(ctx, [
+        [sway, -u * 0.36], [sway + u * 0.19, -u * 0.25], [sway + u * 0.17, -u * 0.04],
+        [sway, u * 0.04], [sway - u * 0.17, -u * 0.04], [sway - u * 0.19, -u * 0.25]
       ]);
       ctx.fill(); ctx.stroke();
 
-      // Линза копит заряд
+      // Сердцевина
+      var glow = 0.5 + 0.5 * Math.sin(time * 2.4);
       ctx.fillStyle = t.color;
-      ctx.globalAlpha = 0.25 + 0.35 * charge;
-      Draw.circle(ctx, 0, -u * 0.31, u * 0.055 + u * 0.015 * charge);
-      ctx.fill();
+      ctx.globalAlpha = 0.25 + 0.3 * glow;
+      Draw.circle(ctx, sway, -u * 0.16, u * 0.10 + u * 0.015 * glow); ctx.fill();
       ctx.globalAlpha = 1;
-      Draw.circle(ctx, 0, -u * 0.31, u * 0.025);
-      ctx.fill();
+      Draw.circle(ctx, sway, -u * 0.16, u * 0.05); ctx.fill();
+    },
 
-      // Рёбра охлаждения
-      ctx.globalAlpha = 0.45;
-      for (var i = -1; i <= 1; i++) {
-        ctx.fillRect(-u * 0.17 + (i + 1) * u * 0.115, u * 0.02, u * 0.045, u * 0.14);
-      }
+    /* Стрелок: гнутый стебель и вытянутое рыло вверх */
+    shooter: function (ctx, u, k, t, opts, time) {
+      var nod = Math.sin(time * 1.4) * u * 0.012;
+      ctx.lineWidth = Math.max(1, k);
+      Draw.stalk(ctx, -u * 0.10, u * 0.32, -u * 0.16, u * 0.06,
+        -u * 0.02, -u * 0.04, 3 * k, t.color, 0.5);
+
+      // Листок у основания
+      ctx.save();
+      ctx.globalAlpha = 0.4;
+      ctx.fillStyle = t.color;
+      Draw.smooth(ctx, [[-u * 0.10, u * 0.20], [-u * 0.28, u * 0.14], [-u * 0.12, u * 0.27]]);
+      ctx.fill();
+      ctx.restore();
+
+      // Голова с рылом
+      ctx.fillStyle = opts.hurt ? '#2A323C' : t.fill;
+      ctx.strokeStyle = t.color;
+      Draw.smooth(ctx, [
+        [u * 0.02, -u * 0.38 + nod], [u * 0.17, -u * 0.30 + nod], [u * 0.19, -u * 0.10],
+        [u * 0.02, u * 0.02], [-u * 0.17, -u * 0.08], [-u * 0.16, -u * 0.28 + nod]
+      ]);
+      ctx.fill(); ctx.stroke();
+
+      // Ствол-рыло
+      Draw.smooth(ctx, [
+        [u * 0.01, -u * 0.44 + nod], [u * 0.12, -u * 0.38 + nod],
+        [u * 0.10, -u * 0.26], [-u * 0.08, -u * 0.28]
+      ]);
+      ctx.fill(); ctx.stroke();
+
+      ctx.fillStyle = t.color;
+      ctx.globalAlpha = 0.7;
+      Draw.circle(ctx, u * 0.02, -u * 0.42 + nod, u * 0.035); ctx.fill();
       ctx.globalAlpha = 1;
     },
 
-    /* Ремонтник: корпус с манипулятором и вращающимся ключом */
-    repair: function (ctx, u, k, t, opts, time) {
+    /* Барьер: кривобокий валун, шире книзу */
+    barrier: function (ctx, u, k, t, opts, time) {
       ctx.lineWidth = Math.max(1, k);
-      Units.body(ctx, t, opts, u * 0.46, u * 0.42, u * 0.13, u * 0.04);
-
-      // Манипулятор описывает круг — видно, что юнит работает
-      var a = time * 1.4;
+      ctx.fillStyle = opts.hurt ? '#2A323C' : t.fill;
       ctx.strokeStyle = t.color;
+      Draw.smooth(ctx, [
+        [-u * 0.12, -u * 0.30], [u * 0.16, -u * 0.26], [u * 0.36, -u * 0.02],
+        [u * 0.30, u * 0.28], [-u * 0.06, u * 0.32], [-u * 0.34, u * 0.20],
+        [-u * 0.36, -u * 0.08]
+      ]);
+      ctx.fill(); ctx.stroke();
+
+      // Скол и трещины — валун битый, но держится
+      ctx.save();
+      ctx.globalAlpha = 0.4;
+      ctx.strokeStyle = t.color;
+      ctx.lineWidth = Math.max(1, 1.2 * k);
+      ctx.beginPath();
+      ctx.moveTo(-u * 0.20, -u * 0.14); ctx.lineTo(-u * 0.06, u * 0.02); ctx.lineTo(-u * 0.14, u * 0.22);
+      ctx.moveTo(u * 0.12, -u * 0.18); ctx.lineTo(u * 0.20, u * 0.06);
+      ctx.stroke();
+      ctx.restore();
+    },
+
+    /* Морозилка: та же посадка, что у стрелка, но голова — ледяной кристалл */
+    freezer: function (ctx, u, k, t, opts, time) {
+      ctx.lineWidth = Math.max(1, k);
+      Draw.stalk(ctx, u * 0.10, u * 0.32, u * 0.16, u * 0.06,
+        u * 0.02, -u * 0.04, 3 * k, t.color, 0.5);
+
+      ctx.fillStyle = opts.hurt ? '#2A323C' : t.fill;
+      ctx.strokeStyle = t.color;
+      // Гранёная голова
+      Draw.poly(ctx, [
+        [0, -u * 0.42], [u * 0.20, -u * 0.24], [u * 0.16, u * 0.00],
+        [0, u * 0.06], [-u * 0.16, u * 0.00], [-u * 0.20, -u * 0.24]
+      ]);
+      ctx.fill(); ctx.stroke();
+
+      // Иней вокруг
+      ctx.save();
+      ctx.globalAlpha = 0.3 + 0.2 * Math.sin(time * 1.9);
+      ctx.strokeStyle = t.color;
+      ctx.lineWidth = Math.max(1, 1.3 * k);
+      for (var i = 0; i < 3; i++) {
+        var a = -Math.PI / 2 + (i - 1) * 0.9;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(a) * u * 0.24, -u * 0.18 + Math.sin(a) * u * 0.24);
+        ctx.lineTo(Math.cos(a) * u * 0.34, -u * 0.18 + Math.sin(a) * u * 0.34);
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      ctx.fillStyle = t.color;
+      Draw.circle(ctx, 0, -u * 0.20, u * 0.045); ctx.fill();
+    },
+
+    /* Дробовик: приземистый раструб, широкий зев */
+    shotgun: function (ctx, u, k, t, opts, time) {
+      ctx.lineWidth = Math.max(1, k);
+      ctx.fillStyle = opts.hurt ? '#2A323C' : t.fill;
+      ctx.strokeStyle = t.color;
+      Draw.smooth(ctx, [
+        [-u * 0.30, -u * 0.26], [u * 0.30, -u * 0.26], [u * 0.20, u * 0.06],
+        [u * 0.26, u * 0.28], [-u * 0.26, u * 0.28], [-u * 0.20, u * 0.06]
+      ]);
+      ctx.fill(); ctx.stroke();
+
+      // Тёмный зев
+      ctx.save();
+      ctx.globalAlpha = 0.85;
+      ctx.fillStyle = PAL.bgDeep;
+      ctx.beginPath();
+      ctx.ellipse(0, -u * 0.24, u * 0.24, u * 0.07, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+      ctx.strokeStyle = t.color;
+      ctx.beginPath();
+      ctx.ellipse(0, -u * 0.24, u * 0.24, u * 0.07, 0, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.fillStyle = t.color;
+      ctx.globalAlpha = 0.5;
+      ctx.fillRect(-u * 0.16, u * 0.12, u * 0.32, u * 0.05);
+      ctx.globalAlpha = 1;
+    },
+
+    /* Дуплет: два рыла одно над другим */
+    repeater: function (ctx, u, k, t, opts, time) {
+      ctx.lineWidth = Math.max(1, k);
+      Draw.stalk(ctx, -u * 0.08, u * 0.32, -u * 0.14, u * 0.08,
+        0, u * 0.02, 3 * k, t.color, 0.5);
+
+      ctx.fillStyle = opts.hurt ? '#2A323C' : t.fill;
+      ctx.strokeStyle = t.color;
+      // Нижняя голова
+      Draw.smooth(ctx, [
+        [u * 0.02, -u * 0.14], [u * 0.18, -u * 0.06], [u * 0.14, u * 0.12],
+        [-u * 0.04, u * 0.16], [-u * 0.17, u * 0.06], [-u * 0.15, -u * 0.08]
+      ]);
+      ctx.fill(); ctx.stroke();
+      // Верхняя голова
+      Draw.smooth(ctx, [
+        [u * 0.02, -u * 0.44], [u * 0.16, -u * 0.36], [u * 0.13, -u * 0.20],
+        [-u * 0.03, -u * 0.16], [-u * 0.15, -u * 0.24], [-u * 0.13, -u * 0.38]
+      ]);
+      ctx.fill(); ctx.stroke();
+
+      ctx.fillStyle = t.color;
       ctx.globalAlpha = 0.7;
+      Draw.circle(ctx, u * 0.02, -u * 0.40, u * 0.03); ctx.fill();
+      Draw.circle(ctx, u * 0.02, -u * 0.10, u * 0.03); ctx.fill();
+      ctx.globalAlpha = 1;
+    },
+
+    /* Горн: обгорелый пень с живым языком пламени */
+    torch: function (ctx, u, k, t, opts, time) {
+      var flick = 0.5 + 0.5 * Math.sin(time * 7.3);
+      ctx.lineWidth = Math.max(1, k);
+
+      ctx.fillStyle = opts.hurt ? '#2A323C' : t.fill;
+      ctx.strokeStyle = t.color;
+      Draw.smooth(ctx, [
+        [-u * 0.22, -u * 0.06], [u * 0.22, -u * 0.04], [u * 0.28, u * 0.16],
+        [0, u * 0.30], [-u * 0.28, u * 0.16]
+      ]);
+      ctx.fill(); ctx.stroke();
+
+      // Годовые кольца на срезе
+      ctx.save();
+      ctx.globalAlpha = 0.35;
+      ctx.strokeStyle = t.color;
+      ctx.beginPath();
+      ctx.ellipse(0, -u * 0.03, u * 0.14, u * 0.045, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+
+      // Пламя
+      ctx.fillStyle = t.color;
+      ctx.globalAlpha = 0.22 + 0.18 * flick;
+      Draw.smooth(ctx, [
+        [0, -u * 0.44 - u * 0.05 * flick], [u * 0.15, -u * 0.18],
+        [u * 0.05, -u * 0.04], [-u * 0.05, -u * 0.04], [-u * 0.15, -u * 0.18]
+      ]);
+      ctx.fill();
+      ctx.globalAlpha = 0.85;
+      Draw.smooth(ctx, [
+        [0, -u * 0.28 - u * 0.04 * flick], [u * 0.07, -u * 0.14],
+        [0, -u * 0.05], [-u * 0.07, -u * 0.14]
+      ]);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    },
+
+    /* Магнит: гриб, под шляпкой — подкова */
+    magnet: function (ctx, u, k, t, opts, time) {
+      ctx.lineWidth = Math.max(1, k);
+      ctx.fillStyle = opts.hurt ? '#2A323C' : t.fill;
+      ctx.strokeStyle = t.color;
+
+      // Ножка
+      Draw.smooth(ctx, [
+        [-u * 0.09, -u * 0.06], [u * 0.09, -u * 0.06],
+        [u * 0.13, u * 0.28], [-u * 0.13, u * 0.28]
+      ]);
+      ctx.fill(); ctx.stroke();
+
+      // Шляпка
+      Draw.smooth(ctx, [
+        [0, -u * 0.38], [u * 0.30, -u * 0.20], [u * 0.26, -u * 0.04],
+        [-u * 0.26, -u * 0.04], [-u * 0.30, -u * 0.20]
+      ]);
+      ctx.fill(); ctx.stroke();
+
+      // Подкова
+      ctx.strokeStyle = t.color;
+      ctx.lineWidth = Math.max(2, 3.5 * k);
+      ctx.beginPath();
+      ctx.arc(0, -u * 0.16, u * 0.11, Math.PI * 0.95, Math.PI * 2.05);
+      ctx.stroke();
+      ctx.fillStyle = t.color;
+      ctx.fillRect(-u * 0.145, -u * 0.17, u * 0.06, u * 0.10);
+      ctx.fillRect(u * 0.085, -u * 0.17, u * 0.06, u * 0.10);
+
+      ctx.globalAlpha = 0.12 + 0.12 * (0.5 + 0.5 * Math.sin(time * 2.6));
+      Draw.glowCircle(ctx, 0, -u * 0.16, u * 0.26, t.color, 1, 3 * k);
+      ctx.globalAlpha = 1;
+    },
+
+    /* Веер: один стебель, три рыла врозь */
+    fan: function (ctx, u, k, t, opts, time) {
+      ctx.lineWidth = Math.max(1, k);
+      Draw.stalk(ctx, 0, u * 0.32, 0, u * 0.14, 0, u * 0.04, 3 * k, t.color, 0.5);
+
+      ctx.fillStyle = opts.hurt ? '#2A323C' : t.fill;
+      ctx.strokeStyle = t.color;
+      var angles = [-0.62, 0, 0.62];
+      for (var i = 0; i < 3; i++) {
+        ctx.save();
+        ctx.translate(0, u * 0.02);
+        ctx.rotate(angles[i]);
+        Draw.smooth(ctx, [
+          [0, -u * 0.40], [u * 0.13, -u * 0.32], [u * 0.11, -u * 0.14],
+          [0, -u * 0.08], [-u * 0.11, -u * 0.14], [-u * 0.13, -u * 0.32]
+        ]);
+        ctx.fill(); ctx.stroke();
+        ctx.fillStyle = t.color;
+        ctx.globalAlpha = 0.7;
+        Draw.circle(ctx, 0, -u * 0.36, u * 0.028); ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = opts.hurt ? '#2A323C' : t.fill;
+        ctx.restore();
+      }
+    },
+
+    /* Ремонтник: пузатый корпус с обвисшим манипулятором */
+    repair: function (ctx, u, k, t, opts, time) {
+      var arm = Math.sin(time * 1.3);
+      ctx.lineWidth = Math.max(1, k);
+      ctx.fillStyle = opts.hurt ? '#2A323C' : t.fill;
+      ctx.strokeStyle = t.color;
+      Draw.smooth(ctx, [
+        [-u * 0.06, -u * 0.32], [u * 0.20, -u * 0.20], [u * 0.24, u * 0.10],
+        [u * 0.04, u * 0.30], [-u * 0.22, u * 0.18], [-u * 0.24, -u * 0.12]
+      ]);
+      ctx.fill(); ctx.stroke();
+
+      // Манипулятор
+      ctx.save();
+      ctx.globalAlpha = 0.75;
+      ctx.strokeStyle = t.color;
+      ctx.lineWidth = Math.max(1, 2 * k);
+      ctx.beginPath();
+      ctx.moveTo(u * 0.16, -u * 0.10);
+      ctx.quadraticCurveTo(u * 0.34, u * 0.02, u * 0.30 + arm * u * 0.05, u * 0.20);
+      ctx.stroke();
+      ctx.fillStyle = t.color;
+      Draw.circle(ctx, u * 0.30 + arm * u * 0.05, u * 0.22, u * 0.045); ctx.fill();
+      ctx.restore();
+
+      // Крест
+      ctx.strokeStyle = t.color;
       ctx.lineWidth = Math.max(1, 1.6 * k);
       ctx.beginPath();
-      ctx.moveTo(0, u * 0.02);
-      ctx.lineTo(Math.cos(a) * u * 0.22, u * 0.02 + Math.sin(a) * u * 0.22);
-      ctx.stroke();
-      ctx.fillStyle = t.color;
-      Draw.circle(ctx, Math.cos(a) * u * 0.22, u * 0.02 + Math.sin(a) * u * 0.22, u * 0.035);
-      ctx.fill();
-      ctx.globalAlpha = 1;
-
-      // Крест ремонта в центре
-      ctx.lineWidth = Math.max(1, 1.5 * k);
-      ctx.beginPath();
-      ctx.moveTo(0, -u * 0.07); ctx.lineTo(0, u * 0.11);
-      ctx.moveTo(-u * 0.09, u * 0.02); ctx.lineTo(u * 0.09, u * 0.02);
+      ctx.moveTo(-u * 0.04, -u * 0.14); ctx.lineTo(-u * 0.04, u * 0.06);
+      ctx.moveTo(-u * 0.14, -u * 0.04); ctx.lineTo(u * 0.06, -u * 0.04);
       ctx.stroke();
     },
 
-    /* Шипы: плоская гребёнка на земле */
+    /* Мортира: короткий толстый ствол навесом на земляном холмике */
+    mortar: function (ctx, u, k, t, opts, time) {
+      ctx.lineWidth = Math.max(1, k);
+      ctx.fillStyle = opts.hurt ? '#2A323C' : t.fill;
+      ctx.strokeStyle = t.color;
+
+      // Холмик
+      Draw.smooth(ctx, [
+        [-u * 0.34, u * 0.10], [0, u * 0.00], [u * 0.34, u * 0.10],
+        [u * 0.28, u * 0.30], [-u * 0.28, u * 0.30]
+      ]);
+      ctx.fill(); ctx.stroke();
+
+      // Ствол
+      ctx.save();
+      ctx.rotate(-0.30);
+      Draw.smooth(ctx, [
+        [-u * 0.13, -u * 0.34], [u * 0.13, -u * 0.34],
+        [u * 0.10, u * 0.06], [-u * 0.10, u * 0.06]
+      ]);
+      ctx.fill(); ctx.stroke();
+      ctx.save();
+      ctx.globalAlpha = 0.85;
+      ctx.fillStyle = PAL.bgDeep;
+      ctx.beginPath();
+      ctx.ellipse(0, -u * 0.33, u * 0.12, u * 0.045, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+      ctx.restore();
+    },
+
+    /* Лазер: тонкий кристалл-шпиль, копящий свет */
+    laser: function (ctx, u, k, t, opts, time) {
+      var charge = 0.5 + 0.5 * Math.sin(time * 5);
+      ctx.lineWidth = Math.max(1, k);
+      ctx.fillStyle = opts.hurt ? '#2A323C' : t.fill;
+      ctx.strokeStyle = t.color;
+
+      // Основание
+      Draw.smooth(ctx, [
+        [-u * 0.22, u * 0.10], [u * 0.22, u * 0.10],
+        [u * 0.16, u * 0.30], [-u * 0.16, u * 0.30]
+      ]);
+      ctx.fill(); ctx.stroke();
+
+      // Шпиль
+      Draw.poly(ctx, [
+        [0, -u * 0.44], [u * 0.12, -u * 0.12], [u * 0.08, u * 0.12],
+        [-u * 0.08, u * 0.12], [-u * 0.12, -u * 0.12]
+      ]);
+      ctx.fill(); ctx.stroke();
+
+      // Свет внутри
+      ctx.fillStyle = t.color;
+      ctx.globalAlpha = 0.2 + 0.4 * charge;
+      Draw.poly(ctx, [
+        [0, -u * 0.34], [u * 0.05, -u * 0.10], [0, u * 0.06], [-u * 0.05, -u * 0.10]
+      ]);
+      ctx.fill();
+      ctx.globalAlpha = 0.25 + 0.3 * charge;
+      Draw.circle(ctx, 0, -u * 0.40, u * 0.06 + u * 0.02 * charge); ctx.fill();
+      ctx.globalAlpha = 1;
+    },
+
+    /* Мина: бугристый клубень, наполовину в земле */
+    mine: function (ctx, u, k, t, opts, time) {
+      var blink = 0.5 + 0.5 * Math.sin(time * 5);
+      ctx.lineWidth = Math.max(1, k);
+      ctx.fillStyle = opts.hurt ? '#2A323C' : t.fill;
+      ctx.strokeStyle = t.color;
+      Draw.smooth(ctx, [
+        [-u * 0.04, -u * 0.16], [u * 0.14, -u * 0.10], [u * 0.17, u * 0.06],
+        [0, u * 0.14], [-u * 0.16, u * 0.06], [-u * 0.15, -u * 0.08]
+      ]);
+      ctx.fill(); ctx.stroke();
+
+      // Росток-взрыватель
+      ctx.save();
+      ctx.globalAlpha = 0.5 + 0.5 * blink;
+      ctx.strokeStyle = t.color;
+      ctx.lineWidth = Math.max(1, 1.4 * k);
+      ctx.beginPath();
+      ctx.moveTo(u * 0.02, -u * 0.14);
+      ctx.quadraticCurveTo(u * 0.08, -u * 0.24, u * 0.01, -u * 0.28);
+      ctx.stroke();
+      ctx.fillStyle = t.color;
+      Draw.circle(ctx, u * 0.01, -u * 0.29, u * 0.035); ctx.fill();
+      ctx.restore();
+    },
+
+    /* Шипы: низкий неровный мат с торчащими зубьями */
     spikes: function (ctx, u, k, t, opts, time) {
       ctx.lineWidth = Math.max(1, k);
       ctx.fillStyle = opts.hurt ? '#2A323C' : t.fill;
       ctx.strokeStyle = t.color;
-      Draw.roundRect(ctx, -u * 0.32, u * 0.06, u * 0.64, u * 0.18, u * 0.05);
+      Draw.smooth(ctx, [
+        [-u * 0.34, u * 0.12], [-u * 0.10, u * 0.06], [u * 0.14, u * 0.10],
+        [u * 0.34, u * 0.14], [u * 0.24, u * 0.28], [-u * 0.22, u * 0.28]
+      ]);
       ctx.fill(); ctx.stroke();
 
+      // Зубья разной длины — ровный частокол выглядел бы деталью интерфейса
       ctx.fillStyle = t.color;
+      var hs = [0.20, 0.30, 0.16, 0.26, 0.19];
       for (var i = 0; i < 5; i++) {
-        var x = -u * 0.26 + i * u * 0.13;
-        Draw.poly(ctx, [[x - u * 0.045, u * 0.06], [x + u * 0.045, u * 0.06], [x, u * 0.06 - u * 0.16]]);
+        var x = -u * 0.27 + i * u * 0.135;
+        Draw.poly(ctx, [
+          [x - u * 0.045, u * 0.10], [x + u * 0.045, u * 0.10], [x + (i % 2 ? 0.01 : -0.01) * u, u * 0.10 - u * hs[i]]
+        ]);
         ctx.fill();
       }
     },
 
-    /* Капкан: раскрытая пасть, в жевании закрывается */
+    /* Капкан: кособокая голова-пасть на согнутом стебле */
     chomper: function (ctx, u, k, t, opts, time) {
+      var open = opts.busy ? 0.06 : 0.34 + 0.06 * Math.sin(time * 1.8);
       ctx.lineWidth = Math.max(1, k);
-      var open = opts.busy ? 0.08 : 0.30 + 0.05 * Math.sin(time * 2);
-
-      // Стебель
-      ctx.strokeStyle = t.color;
-      ctx.globalAlpha = 0.6;
-      ctx.lineWidth = Math.max(1, 2 * k);
-      ctx.beginPath();
-      ctx.moveTo(0, u * 0.30); ctx.lineTo(0, u * 0.02);
-      ctx.stroke();
-      ctx.globalAlpha = 1;
-      ctx.lineWidth = Math.max(1, k);
+      Draw.stalk(ctx, u * 0.10, u * 0.32, u * 0.18, u * 0.10,
+        -u * 0.02, u * 0.02, 3 * k, t.color, 0.5);
 
       ctx.fillStyle = opts.hurt ? '#2A323C' : t.fill;
+      ctx.strokeStyle = t.color;
+
       // Нижняя челюсть
-      Draw.poly(ctx, [[-u * 0.24, u * 0.04], [u * 0.24, u * 0.04],
-                      [u * 0.16, u * 0.20], [-u * 0.16, u * 0.20]]);
-      ctx.fill(); ctx.stroke();
-      // Верхняя челюсть раскрывается
       ctx.save();
-      ctx.translate(0, u * 0.02);
+      ctx.translate(-u * 0.02, u * 0.02);
+      Draw.smooth(ctx, [
+        [-u * 0.26, -u * 0.02], [u * 0.24, u * 0.00],
+        [u * 0.18, u * 0.18], [-u * 0.20, u * 0.16]
+      ]);
+      ctx.fill(); ctx.stroke();
+      // Верхняя раскрывается
       ctx.rotate(-open);
-      Draw.poly(ctx, [[-u * 0.24, 0], [u * 0.24, 0], [u * 0.16, -u * 0.20], [-u * 0.16, -u * 0.20]]);
+      Draw.smooth(ctx, [
+        [-u * 0.26, -u * 0.02], [u * 0.26, -u * 0.06],
+        [u * 0.20, -u * 0.26], [-u * 0.18, -u * 0.22]
+      ]);
       ctx.fill(); ctx.stroke();
       ctx.restore();
 
-      ctx.fillStyle = t.color;
-      Draw.circle(ctx, 0, u * 0.11, u * 0.03); ctx.fill();
+      // Зубы
+      ctx.save();
+      ctx.globalAlpha = 0.8;
+      ctx.fillStyle = '#D8DEE6';
+      for (var i = 0; i < 3; i++) {
+        var x = -u * 0.14 + i * u * 0.14;
+        Draw.poly(ctx, [[x - u * 0.03, u * 0.02], [x + u * 0.03, u * 0.02], [x, u * 0.09]]);
+        ctx.fill();
+      }
+      ctx.restore();
     },
 
-    /* Молния: катушка с дугой разряда */
+    /* Молния: шар на узкой ноге, вокруг бегут дуги */
     tesla: function (ctx, u, k, t, opts, time) {
+      var pulse = 0.5 + 0.5 * Math.sin(time * 8);
       ctx.lineWidth = Math.max(1, k);
-      Units.body(ctx, t, opts, u * 0.34, u * 0.34, u * 0.08, u * 0.12);
-
-      // Катушка
+      ctx.fillStyle = opts.hurt ? '#2A323C' : t.fill;
       ctx.strokeStyle = t.color;
-      ctx.globalAlpha = 0.7;
+
+      Draw.smooth(ctx, [
+        [-u * 0.16, u * 0.04], [u * 0.16, u * 0.04],
+        [u * 0.22, u * 0.30], [-u * 0.22, u * 0.30]
+      ]);
+      ctx.fill(); ctx.stroke();
+
+      // Витки
+      ctx.save();
+      ctx.globalAlpha = 0.55;
+      ctx.strokeStyle = t.color;
       for (var i = 0; i < 3; i++) {
         ctx.beginPath();
-        ctx.ellipse(0, u * 0.02 + i * u * 0.075, u * 0.14, u * 0.035, 0, 0, Math.PI * 2);
+        ctx.ellipse(0, u * 0.02 - i * u * 0.07, u * 0.11 - i * u * 0.012, u * 0.028, 0, 0, Math.PI * 2);
         ctx.stroke();
       }
-      ctx.globalAlpha = 1;
+      ctx.restore();
 
-      // Шар и разряд
+      // Шар
+      ctx.fillStyle = opts.hurt ? '#2A323C' : t.fill;
+      Draw.circle(ctx, 0, -u * 0.26, u * 0.13);
+      ctx.fill(); ctx.stroke();
       ctx.fillStyle = t.color;
-      var pulse = 0.5 + 0.5 * Math.sin(time * 8);
-      ctx.globalAlpha = 0.25 + 0.35 * pulse;
-      Draw.circle(ctx, 0, -u * 0.20, u * 0.12); ctx.fill();
+      ctx.globalAlpha = 0.25 + 0.4 * pulse;
+      Draw.circle(ctx, 0, -u * 0.26, u * 0.09); ctx.fill();
       ctx.globalAlpha = 1;
-      Draw.circle(ctx, 0, -u * 0.20, u * 0.055); ctx.fill();
 
+      // Дуга
       ctx.strokeStyle = t.color;
-      ctx.lineWidth = Math.max(1, 1.2 * k);
+      ctx.lineWidth = Math.max(1, 1.3 * k);
       ctx.beginPath();
-      ctx.moveTo(-u * 0.10, -u * 0.30);
-      ctx.lineTo(-u * 0.03, -u * 0.24);
-      ctx.lineTo(-u * 0.08, -u * 0.18);
+      ctx.moveTo(-u * 0.13, -u * 0.34);
+      ctx.lineTo(-u * 0.04, -u * 0.28);
+      ctx.lineTo(-u * 0.10, -u * 0.20);
       ctx.stroke();
     },
 
-    /* Гарпун: станок с наконечником и тросом */
+    /* Гарпун: наклонный станок с зазубренным наконечником */
     harpoon: function (ctx, u, k, t, opts, time) {
       ctx.lineWidth = Math.max(1, k);
-      Units.body(ctx, t, opts, u * 0.42, u * 0.32, u * 0.09, u * 0.14);
-
-      // Направляющая
       ctx.fillStyle = opts.hurt ? '#2A323C' : t.fill;
       ctx.strokeStyle = t.color;
-      Draw.roundRect(ctx, -u * 0.05, -u * 0.26, u * 0.10, u * 0.34, u * 0.03);
+
+      Draw.smooth(ctx, [
+        [-u * 0.26, u * 0.06], [u * 0.26, u * 0.02],
+        [u * 0.20, u * 0.30], [-u * 0.22, u * 0.28]
+      ]);
       ctx.fill(); ctx.stroke();
 
-      // Наконечник
-      ctx.fillStyle = t.color;
-      Draw.poly(ctx, [[0, -u * 0.36], [u * 0.09, -u * 0.22], [-u * 0.09, -u * 0.22]]);
-      ctx.fill();
-
-      // Трос
-      ctx.strokeStyle = t.color;
-      ctx.globalAlpha = 0.45;
-      ctx.beginPath();
-      ctx.moveTo(-u * 0.14, u * 0.12);
-      ctx.quadraticCurveTo(0, u * 0.04, u * 0.14, u * 0.12);
-      ctx.stroke();
-      ctx.globalAlpha = 1;
-    },
-
-    /* Зонт: купол на короткой ножке */
-    umbrella: function (ctx, u, k, t, opts, time) {
-      ctx.lineWidth = Math.max(1, k);
-
-      // Ножка
-      ctx.strokeStyle = t.color;
-      ctx.globalAlpha = 0.6;
-      ctx.lineWidth = Math.max(1, 2 * k);
-      ctx.beginPath();
-      ctx.moveTo(0, u * 0.28); ctx.lineTo(0, -u * 0.04);
-      ctx.stroke();
-      ctx.globalAlpha = 1;
-      ctx.lineWidth = Math.max(1, k);
-
-      // Купол
-      ctx.fillStyle = opts.hurt ? '#2A323C' : t.fill;
-      ctx.beginPath();
-      ctx.moveTo(-u * 0.32, -u * 0.04);
-      ctx.quadraticCurveTo(0, -u * 0.40, u * 0.32, -u * 0.04);
-      ctx.closePath();
-      ctx.fill(); ctx.stroke();
-
-      // Рёбра
-      ctx.globalAlpha = 0.5;
-      ctx.beginPath();
-      ctx.moveTo(-u * 0.16, -u * 0.04); ctx.quadraticCurveTo(-u * 0.14, -u * 0.24, 0, -u * 0.30);
-      ctx.moveTo(u * 0.16, -u * 0.04); ctx.quadraticCurveTo(u * 0.14, -u * 0.24, 0, -u * 0.30);
-      ctx.stroke();
-      ctx.globalAlpha = 1;
-    },
-
-    /* Маятник: груз на подвесе, ходит из стороны в сторону */
-    pendulum: function (ctx, u, k, t, opts, time) {
-      ctx.lineWidth = Math.max(1, k);
-      var sway = Math.sin(time * 2.2) * 0.5;
-
-      // Рама
-      ctx.strokeStyle = t.color;
-      ctx.globalAlpha = 0.55;
-      ctx.lineWidth = Math.max(1, 1.6 * k);
-      ctx.beginPath();
-      ctx.moveTo(-u * 0.26, u * 0.28); ctx.lineTo(0, -u * 0.26);
-      ctx.lineTo(u * 0.26, u * 0.28);
-      ctx.stroke();
-      ctx.globalAlpha = 1;
-
-      // Подвес с грузом
       ctx.save();
-      ctx.translate(0, -u * 0.26);
-      ctx.rotate(sway);
-      ctx.strokeStyle = t.color;
-      ctx.lineWidth = Math.max(1, 1.2 * k);
-      ctx.beginPath();
-      ctx.moveTo(0, 0); ctx.lineTo(0, u * 0.34);
-      ctx.stroke();
-      ctx.fillStyle = opts.hurt ? '#2A323C' : t.fill;
-      Draw.circle(ctx, 0, u * 0.40, u * 0.11);
+      ctx.rotate(-0.12);
+      // Древко
+      Draw.smooth(ctx, [
+        [-u * 0.05, -u * 0.30], [u * 0.05, -u * 0.30],
+        [u * 0.04, u * 0.08], [-u * 0.04, u * 0.08]
+      ]);
       ctx.fill(); ctx.stroke();
+      // Зазубренный наконечник
       ctx.fillStyle = t.color;
-      Draw.circle(ctx, 0, u * 0.40, u * 0.04);
+      Draw.poly(ctx, [
+        [0, -u * 0.44], [u * 0.11, -u * 0.24], [u * 0.04, -u * 0.27],
+        [0, -u * 0.20], [-u * 0.04, -u * 0.27], [-u * 0.11, -u * 0.24]
+      ]);
       ctx.fill();
+      ctx.restore();
+
+      // Моток троса
+      ctx.save();
+      ctx.globalAlpha = 0.45;
+      ctx.strokeStyle = t.color;
+      ctx.beginPath();
+      ctx.ellipse(u * 0.12, u * 0.18, u * 0.07, u * 0.05, 0, 0, Math.PI * 2);
+      ctx.stroke();
       ctx.restore();
     },
 
-    /* Сеть: катушка с растянутым полотном */
-    net: function (ctx, u, k, t, opts, time) {
+    /* Зонт: широкий ребристый купол на кривой ножке */
+    umbrella: function (ctx, u, k, t, opts, time) {
+      var tilt = Math.sin(time * 0.9) * 0.05;
       ctx.lineWidth = Math.max(1, k);
-      Units.body(ctx, t, opts, u * 0.40, u * 0.30, u * 0.08, u * 0.15);
+      Draw.stalk(ctx, u * 0.04, u * 0.32, u * 0.08, u * 0.12,
+        0, -u * 0.04, 2.5 * k, t.color, 0.45);
 
-      // Полотно
-      ctx.strokeStyle = t.color;
-      ctx.globalAlpha = 0.75;
-      ctx.lineWidth = Math.max(1, k);
-      ctx.beginPath();
-      for (var i = -2; i <= 2; i++) {
-        ctx.moveTo(i * u * 0.09, -u * 0.30);
-        ctx.lineTo(i * u * 0.09 * 0.55, -u * 0.04);
-      }
-      for (var j = 0; j < 3; j++) {
-        var y = -u * 0.28 + j * u * 0.10;
-        var half = u * 0.19 * (1 - j * 0.22);
-        ctx.moveTo(-half, y); ctx.lineTo(half, y);
-      }
-      ctx.stroke();
-      ctx.globalAlpha = 1;
-    },
-
-    /* Мина: диск с шипами и мигающим взрывателем */
-    mine: function (ctx, u, k, t, opts, time) {
-      ctx.lineWidth = Math.max(1, k);
-      var blink = 0.5 + 0.5 * Math.sin(time * 5);
-
-      // Шипы
-      ctx.strokeStyle = t.color;
-      ctx.globalAlpha = 0.65;
-      ctx.lineWidth = Math.max(1, 1.2 * k);
-      ctx.beginPath();
-      for (var i = 0; i < 6; i++) {
-        var a = (i / 6) * Math.PI * 2;
-        ctx.moveTo(Math.cos(a) * u * 0.13, Math.sin(a) * u * 0.13);
-        ctx.lineTo(Math.cos(a) * u * 0.185, Math.sin(a) * u * 0.185);
-      }
-      ctx.stroke();
-      ctx.globalAlpha = 1;
-
-      // Корпус
+      ctx.save();
+      ctx.rotate(tilt);
       ctx.fillStyle = opts.hurt ? '#2A323C' : t.fill;
-      ctx.lineWidth = Math.max(1, k);
-      Draw.circle(ctx, 0, 0, u * 0.135);
+      ctx.strokeStyle = t.color;
+      Draw.smooth(ctx, [
+        [0, -u * 0.40], [u * 0.26, -u * 0.24], [u * 0.36, -u * 0.04],
+        [u * 0.12, -u * 0.10], [0, -u * 0.02], [-u * 0.12, -u * 0.10],
+        [-u * 0.36, -u * 0.04], [-u * 0.26, -u * 0.24]
+      ]);
       ctx.fill(); ctx.stroke();
 
-      // Взрыватель
-      ctx.fillStyle = t.color;
-      ctx.globalAlpha = 0.3 + 0.7 * blink;
-      Draw.circle(ctx, 0, 0, u * 0.05);
-      ctx.fill();
+      ctx.save();
+      ctx.globalAlpha = 0.4;
+      ctx.strokeStyle = t.color;
+      ctx.beginPath();
+      ctx.moveTo(0, -u * 0.36); ctx.quadraticCurveTo(-u * 0.14, -u * 0.20, -u * 0.20, -u * 0.07);
+      ctx.moveTo(0, -u * 0.36); ctx.quadraticCurveTo(u * 0.14, -u * 0.20, u * 0.20, -u * 0.07);
+      ctx.stroke();
+      ctx.restore();
+      ctx.restore();
+    },
+
+    /* Маятник: кривая рама и тяжёлый груз, ходящий из стороны в сторону */
+    pendulum: function (ctx, u, k, t, opts, time) {
+      var sway = Math.sin(time * 2.2) * 0.55;
+      ctx.lineWidth = Math.max(1, k);
+
+      ctx.save();
+      ctx.globalAlpha = 0.5;
+      ctx.strokeStyle = t.color;
+      ctx.lineWidth = Math.max(1, 2.2 * k);
+      ctx.beginPath();
+      ctx.moveTo(-u * 0.28, u * 0.30);
+      ctx.quadraticCurveTo(-u * 0.10, -u * 0.20, 0, -u * 0.30);
+      ctx.quadraticCurveTo(u * 0.10, -u * 0.20, u * 0.28, u * 0.30);
+      ctx.stroke();
+      ctx.restore();
+
+      ctx.save();
+      ctx.translate(0, -u * 0.28);
+      ctx.rotate(sway);
+      ctx.strokeStyle = t.color;
+      ctx.globalAlpha = 0.8;
+      ctx.lineWidth = Math.max(1, 1.4 * k);
+      ctx.beginPath();
+      ctx.moveTo(0, 0); ctx.lineTo(0, u * 0.32);
+      ctx.stroke();
       ctx.globalAlpha = 1;
+      ctx.fillStyle = opts.hurt ? '#2A323C' : t.fill;
+      Draw.smooth(ctx, [
+        [0, u * 0.26], [u * 0.13, u * 0.36], [u * 0.06, u * 0.50],
+        [-u * 0.06, u * 0.50], [-u * 0.13, u * 0.36]
+      ]);
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = t.color;
+      ctx.globalAlpha = 0.6;
+      Draw.circle(ctx, 0, u * 0.38, u * 0.04); ctx.fill();
+      ctx.restore();
+    },
+
+    /* Сеть: полотно, натянутое между двумя кривыми стойками */
+    net: function (ctx, u, k, t, opts, time) {
+      var wob = Math.sin(time * 1.6) * u * 0.012;
+      ctx.lineWidth = Math.max(1, k);
+
+      // Стойки
+      ctx.save();
+      ctx.globalAlpha = 0.6;
+      ctx.strokeStyle = t.color;
+      ctx.lineWidth = Math.max(1, 2.4 * k);
+      ctx.beginPath();
+      ctx.moveTo(-u * 0.24, u * 0.30);
+      ctx.quadraticCurveTo(-u * 0.30, -u * 0.06, -u * 0.22, -u * 0.30);
+      ctx.moveTo(u * 0.24, u * 0.30);
+      ctx.quadraticCurveTo(u * 0.30, -u * 0.06, u * 0.22, -u * 0.30);
+      ctx.stroke();
+      ctx.restore();
+
+      // Полотно провисает
+      ctx.save();
+      ctx.globalAlpha = 0.75;
+      ctx.strokeStyle = t.color;
+      ctx.lineWidth = Math.max(1, k);
+      ctx.beginPath();
+      for (var i = 0; i <= 4; i++) {
+        var f = i / 4;
+        var x = -u * 0.22 + f * u * 0.44;
+        ctx.moveTo(x, -u * 0.30 + Math.abs(f - 0.5) * u * 0.04);
+        ctx.lineTo(x, u * 0.10 + wob);
+      }
+      for (var j = 0; j < 4; j++) {
+        var y = -u * 0.26 + j * u * 0.11;
+        ctx.moveTo(-u * 0.23, y);
+        ctx.quadraticCurveTo(0, y + u * 0.07 + wob, u * 0.23, y);
+      }
+      ctx.stroke();
+      ctx.restore();
     }
   }
 };

@@ -76,23 +76,61 @@ var UI = {
   drawMenuMark: function () {
     var cv = document.getElementById('menu-mark-canvas');
     if (!cv) return;
+    var S = 150;
     var dpr = Math.min(window.devicePixelRatio || 1, 3);
-    cv.width = 120 * dpr; cv.height = 120 * dpr;
-    cv.style.width = '120px'; cv.style.height = '120px';
+    cv.width = S * dpr; cv.height = S * dpr;
+    cv.style.width = S + 'px'; cv.style.height = S + 'px';
     var ctx = cv.getContext('2d');
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    var cx = S / 2;
 
-    // Луна
-    ctx.globalAlpha = 0.14;
+    // Звёзды: неровная россыпь, иначе читается как узор
+    ctx.fillStyle = PAL.textMain;
+    var stars = [[24, 30, 1.7, .35], [126, 40, 1.2, .25], [38, 96, 1.1, .2],
+                 [118, 92, 1.5, .3], [88, 16, 1.2, .25], [16, 66, 1.0, .18],
+                 [136, 68, 1.3, .22], [62, 26, 0.9, .2]];
+    for (var i = 0; i < stars.length; i++) {
+      ctx.globalAlpha = stars[i][3];
+      Draw.circle(ctx, stars[i][0], stars[i][1], stars[i][2]);
+      ctx.fill();
+    }
+
+    // Луна: ореол, диск, вырезанный серп
+    ctx.globalAlpha = 0.10;
     ctx.fillStyle = PAL.spark;
-    Draw.circle(ctx, 60, 48, 34);
+    Draw.circle(ctx, cx, 62, 44);
     ctx.fill();
+
     ctx.globalAlpha = 1;
+    ctx.fillStyle = PAL.fillSpark;
+    Draw.circle(ctx, cx, 62, 32);
+    ctx.fill();
     ctx.strokeStyle = PAL.spark;
     ctx.lineWidth = 1.5;
-    Draw.circle(ctx, 60, 48, 26);
     ctx.stroke();
 
+    ctx.save();
+    Draw.circle(ctx, cx, 62, 32);
+    ctx.clip();
+    ctx.fillStyle = PAL.bgDeep;
+    Draw.circle(ctx, cx + 19, 52, 30);
+    ctx.fill();
+    ctx.restore();
+
+    // Горизонт: поле уходит в туман
+    ctx.globalAlpha = 0.5;
+    ctx.strokeStyle = PAL.gridLine;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(10, 122);
+    ctx.quadraticCurveTo(cx, 112, S - 10, 122);
+    ctx.stroke();
+    ctx.globalAlpha = 0.22;
+    ctx.beginPath();
+    ctx.moveTo(24, 134);
+    ctx.quadraticCurveTo(cx, 126, S - 24, 134);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
   },
 
   bindMenu: function () {
@@ -640,6 +678,7 @@ var UI = {
     var card = document.createElement('div');
     card.className = 'card';
     card.dataset.unit = typeId;
+    card.style.setProperty('--accent', def.color);
 
     var cv = document.createElement('canvas');
     var dpr = Math.min(window.devicePixelRatio || 1, 3);
