@@ -316,7 +316,15 @@ html, body {
   font-size: 11px; color: var(--text-muted); line-height: 1.5;
   padding: 10px 0 4px; border-top: 1px solid var(--grid-line);
 }
+/* Подзаголовок внутри планеты: где свои, а где чужие */
+.codex-sub {
+  font-size: 10px; letter-spacing: 1px; text-transform: uppercase;
+  color: var(--text-muted); padding: 14px 0 2px;
+}
+.codex-sub + .codex-unit { border-top: none; }
+
 .codex-unit { border-top: 1px solid var(--grid-line); }
+.codex-cost.foe { color: var(--enemy); }
 .codex-unit-head {
   display: flex; align-items: center; gap: 10px;
   padding: 10px 0; cursor: pointer;

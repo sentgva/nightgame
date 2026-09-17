@@ -580,75 +580,24 @@ var UI = {
     var list = this.el.codexList;
     list.innerHTML = '';
 
-    // Сперва планеты: своя механика и свой набор защитников
+    /* Всё собрано по планетам: механика, свои защитники и те, кто туда
+       приходит. Общим списком враги ничего не говорили: из него не видно,
+       к чему готовиться на конкретной планете. */
     var t1 = document.createElement('div');
     t1.className = 'codex-title';
-    t1.textContent = 'Планеты и их защитники';
+    t1.textContent = 'Планеты: защитники и те, кто идёт';
     list.appendChild(t1);
     for (var p = 0; p < PLANETS.length; p++) {
       list.appendChild(this.makePlanetCodex(PLANETS[p]));
     }
-
-    // Затем бестиарий
-    var t2 = document.createElement('div');
-    t2.className = 'codex-title';
-    t2.textContent = 'Кто идёт с той стороны';
-    list.appendChild(t2);
-    for (var i = 0; i < ENEMY_ORDER.length; i++) {
-      list.appendChild(this.makeEnemyCodex(ENEMY_ORDER[i]));
-    }
   },
 
-  /* Карточка врага: силуэт, чем опасен и сухие цифры */
-  makeEnemyCodex: function (typeId) {
-    var def = ENEMY_TYPES[typeId];
-    var item = document.createElement('div');
-    item.className = 'codex-item';
-
-    var head = document.createElement('div');
-    head.className = 'codex-head';
-
-    var box = 40;
-    var cv = document.createElement('canvas');
-    var dpr = Math.min(window.devicePixelRatio || 1, 3);
-    cv.width = Math.round(box * dpr);
-    cv.height = Math.round(box * dpr);
-    cv.style.width = box + 'px';
-    cv.style.height = box + 'px';
-    var ctx = cv.getContext('2d');
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    Enemies.icon(ctx, box / 2, box / 2, box * 1.15, typeId);
-    head.appendChild(cv);
-
-    var meta = document.createElement('div');
-    meta.className = 'codex-meta';
-    meta.innerHTML = '<div class="codex-name">' + def.name + '</div>' +
-      '<div class="codex-role">' + def.role + '</div>';
-    head.appendChild(meta);
-
-    var hp = document.createElement('div');
-    hp.className = 'codex-cost';
-    hp.textContent = def.hp + ' HP';
-    head.appendChild(hp);
-
-    var body = document.createElement('div');
-    body.className = 'codex-body';
-    var lines = [
-      ['Прочность', def.hp + (def.armor ? ' + ' + def.armor + ' брони' : '')],
-      ['Скорость', def.speed >= 0.34 ? 'быстро' : (def.speed >= 0.2 ? 'средне' : 'медленно')],
-      ['Урон по защитнику', def.damage],
-      ['Даёт искр', def.spark]
-    ];
-    var html = '';
-    for (var i = 0; i < lines.length; i++) {
-      html += '<div class="codex-stat"><span>' + lines[i][0] + '</span><b>' + lines[i][1] + '</b></div>';
-    }
-    body.innerHTML = html;
-
-    head.addEventListener('click', function () { item.classList.toggle('open'); });
-    item.appendChild(head);
-    item.appendChild(body);
-    return item;
+  /* Подзаголовок внутри раскрытой планеты */
+  codexSub: function (text) {
+    var el = document.createElement('div');
+    el.className = 'codex-sub';
+    el.textContent = text;
+    return el;
   },
 
   /* Карточка планеты: механика, описание и разбор её набора */
@@ -686,14 +635,76 @@ var UI = {
     body.appendChild(desc);
 
     var units = CORE_UNITS.concat(planet.roster);
+    body.appendChild(this.codexSub('Защитники планеты \u00b7 ' + units.length));
     for (var i = 0; i < units.length; i++) {
       body.appendChild(this.makeCodexUnitBlock(units[i]));
+    }
+
+    var foes = Waves.bestiaryFor(planet.id);
+    body.appendChild(this.codexSub('Кто идёт с той стороны \u00b7 ' + foes.length));
+    for (var f = 0; f < foes.length; f++) {
+      body.appendChild(this.makeCodexFoeBlock(foes[f]));
     }
 
     head.addEventListener('click', function () { item.classList.toggle('open'); });
     item.appendChild(head);
     item.appendChild(body);
     return item;
+  },
+
+  /* Враг внутри карточки планеты: силуэт, чем опасен, цифры по тапу */
+  makeCodexFoeBlock: function (typeId) {
+    var def = ENEMY_TYPES[typeId];
+    var block = document.createElement('div');
+    block.className = 'codex-unit codex-foe';
+
+    var head = document.createElement('div');
+    head.className = 'codex-unit-head';
+
+    var box = 36;
+    var cv = document.createElement('canvas');
+    var dpr = Math.min(window.devicePixelRatio || 1, 3);
+    cv.width = Math.round(box * dpr);
+    cv.height = Math.round(box * dpr);
+    cv.style.width = box + 'px';
+    cv.style.height = box + 'px';
+    var ctx = cv.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    Enemies.icon(ctx, box / 2, box / 2, box * 1.15, typeId);
+    head.appendChild(cv);
+
+    var meta = document.createElement('div');
+    meta.className = 'codex-meta';
+    meta.innerHTML = '<div class="codex-name">' + def.name + '</div>' +
+      '<div class="codex-role">' + def.role + '</div>';
+    head.appendChild(meta);
+
+    var hp = document.createElement('div');
+    hp.className = 'codex-cost foe';
+    hp.textContent = def.hp + ' HP';
+    head.appendChild(hp);
+
+    var stats = document.createElement('div');
+    stats.className = 'codex-tiers';
+    var lines = [
+      ['Прочность', def.hp + (def.armor ? ' + ' + def.armor + ' брони' : '')],
+      ['Скорость', def.speed >= 0.34 ? 'быстро' : (def.speed >= 0.2 ? 'средне' : 'медленно')],
+      ['Урон по защитнику', def.damage],
+      ['Даёт искр', def.spark]
+    ];
+    var html = '';
+    for (var i = 0; i < lines.length; i++) {
+      html += '<div class="codex-stat"><span>' + lines[i][0] + '</span><b>' + lines[i][1] + '</b></div>';
+    }
+    stats.innerHTML = html;
+
+    head.addEventListener('click', function (e) {
+      e.stopPropagation();
+      block.classList.toggle('open');
+    });
+    block.appendChild(head);
+    block.appendChild(stats);
+    return block;
   },
 
   /* Защитник внутри карточки планеты: сводка и три ступени по тапу */

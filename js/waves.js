@@ -422,6 +422,30 @@ var Waves = {
     return list.length ? list[0].id : 1;
   },
 
+  /* Бестиарий планеты: кто действительно выходит на её уровнях.
+     Собираем по готовым волнам, а не по отдельному списку: так справочник
+     не разойдётся с игрой после правки паспортов. Порядок — по первому
+     появлению: сначала те, с кем игрок встретится раньше. */
+  bestiaryFor: function (planetId) {
+    var levels = Waves.ofPlanet(planetId);
+    var seen = {}, out = [];
+    for (var i = 0; i < levels.length; i++) {
+      var lvl = levels[i];
+      for (var w = 0; w < lvl.waves.length; w++) {
+        var list = lvl.waves[w].enemies;
+        for (var e = 0; e < list.length; e++) {
+          if (!seen[list[e].type]) { seen[list[e].type] = 1; out.push(list[e].type); }
+        }
+      }
+      // Осада шлёт подкрепление мимо волн — в волнах его не видно
+      var pool = lvl.siegePool || [];
+      for (var s = 0; s < pool.length; s++) {
+        if (!seen[pool[s]]) { seen[pool[s]] = 1; out.push(pool[s]); }
+      }
+    }
+    return out;
+  },
+
   /* Какой по счёту уровень внутри своей планеты (с единицы) */
   indexInPlanet: function (levelId) {
     var list = Waves.ofPlanet(Waves.get(levelId).planet);
