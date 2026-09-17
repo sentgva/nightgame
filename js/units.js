@@ -162,19 +162,69 @@ var UNIT_TYPES = {
     upgradeKey: 'repair',
     role: 'Чинит соседних защитников'
   },
+  spikes: {
+    id: 'spikes', name: 'Шипы', cost: 100, hp: 200, cooldown: 8,
+    color: PAL.uSpikes, fill: PAL.uSpikesF,
+    ground: true, tickDamage: 16,            // лежит на земле и режет всех, кто наступил
+    upgradeKey: 'tickDamage',
+    role: 'Режет всех, кто наступит'
+  },
+  chomper: {
+    id: 'chomper', name: 'Капкан', cost: 175, hp: 130, cooldown: 10,
+    color: PAL.uChomper, fill: PAL.uChomperF,
+    swallow: true, chewTime: 11, range: 1.2,
+    upgradeKey: 'chewTime',
+    role: 'Глотает врага целиком, потом жуёт'
+  },
+  tesla: {
+    id: 'tesla', name: 'Молния', cost: 250, hp: 100, cooldown: 12,
+    color: PAL.uTesla, fill: PAL.uTeslaF,
+    damage: 18, fireRate: 0.7, range: 3, chain: 3, shotSound: 'freeze',
+    upgradeKey: 'damage',
+    role: 'Бьёт цепью по трём врагам'
+  },
+  harpoon: {
+    id: 'harpoon', name: 'Гарпун', cost: 175, hp: 110, cooldown: 9,
+    color: PAL.uHarpoon, fill: PAL.uHarpoonF,
+    damage: 22, fireRate: 0.5, range: 5, pull: 1.4, shotSound: 'shot',
+    upgradeKey: 'damage',
+    role: 'Оттаскивает врага назад'
+  },
+  umbrella: {
+    id: 'umbrella', name: 'Зонт', cost: 100, hp: 150, cooldown: 8,
+    color: PAL.uUmbrella, fill: PAL.uUmbrellaF,
+    shieldRange: 1,                          // сбивает плевки над собой и соседями
+    upgradeKey: 'shieldRange',
+    role: 'Сбивает плевки над собой и соседями'
+  },
+  pendulum: {
+    id: 'pendulum', name: 'Маятник', cost: 200, hp: 170, cooldown: 11,
+    color: PAL.uPendulum, fill: PAL.uPendulumF,
+    damage: 34, fireRate: 1.0, range: 1.2, sweep: true, shotSound: 'shotBig',
+    upgradeKey: 'damage',
+    role: 'Косит вплотную три колонки'
+  },
+  net: {
+    id: 'net', name: 'Сеть', cost: 150, hp: 110, cooldown: 10,
+    color: PAL.uNet, fill: PAL.uNetF,
+    fireRate: 1 / 6, range: 6, root: 2.5,
+    upgradeKey: 'root',
+    role: 'Пригвождает врага к месту'
+  },
   mine: {
     id: 'mine', name: 'Мина', cost: 25, hp: 1, cooldown: 12,
     color: PAL.uMine, fill: PAL.uMineF,
-    damage: 300, radius: 1.5, oneShot: true,
+    damage: 300, radius: 1.5, oneShot: true, ground: true,
     upgradeKey: 'damage',
     role: 'Взрывается при контакте'
   }
 };
 
 /* Порядок карточек в нижней панели */
-var UNIT_ORDER = ['beacon', 'shooter', 'barrier', 'mine', 'freezer',
+var UNIT_ORDER = ['beacon', 'barrier', 'shooter', 'mine', 'freezer',
                   'shotgun', 'repeater', 'torch', 'magnet', 'fan',
-                  'repair', 'mortar', 'laser'];
+                  'repair', 'mortar', 'laser', 'spikes', 'chomper',
+                  'tesla', 'harpoon', 'umbrella', 'pendulum', 'net'];
 
 /* Множитель основного параметра по ступеням: 1 — обычный, 2 — улучшенный,
    3 — доступен только на Ледяной станции. */
@@ -198,6 +248,8 @@ var Units = {
       spawnT: 0,         // анимация постановки
       frozen: 0,         // остаток обледенения: пока тикает, юнит молчит
       spored: 0,         // споры: пока тикают, темп вдвое ниже
+      stunned: 0,        // аномалия: колонка отключена
+      busy: 0,           // капкан жуёт добычу
       dead: false
     };
   },
@@ -254,6 +306,14 @@ var Units = {
     if (def.produce) {
       lines.push(['Доход', Math.round(Units.stat(fake, 'produce')) + ' искр раз в ' + def.interval + ' с', grows('produce')]);
     }
+    if (def.tickDamage) lines.push(['Урон под ногами', Math.round(Units.stat(fake, 'tickDamage')) + '/с', grows('tickDamage')]);
+    if (def.swallow) lines.push(['Глотает', 'одного врага целиком', false]);
+    if (def.chewTime) lines.push(['Жуёт', Math.round(Units.stat(fake, 'chewTime')) + ' с', grows('chewTime')]);
+    if (def.chain) lines.push(['Цепь', 'до ' + def.chain + ' врагов', false]);
+    if (def.pull) lines.push(['Оттаскивает', def.pull + ' кл. назад', false]);
+    if (def.shieldRange) lines.push(['Прикрывает', '±' + Math.round(Units.stat(fake, 'shieldRange')) + ' колонки', grows('shieldRange')]);
+    if (def.sweep) lines.push(['Задевает', 'три колонки вплотную', false]);
+    if (def.root) lines.push(['Пригвождает', Math.round(Units.stat(fake, 'root') * 10) / 10 + ' с', grows('root')]);
     if (def.splash) lines.push(['Разлёт', def.splash + ' кл. вокруг цели', false]);
     if (def.pierce) lines.push(['Прошивает', 'всех в колонке', false]);
     if (def.repair) lines.push(['Ремонт', Math.round(Units.stat(fake, 'repair')) + ' HP/с соседям', grows('repair')]);
@@ -291,6 +351,15 @@ var Units = {
     var shape = Units.shapes[typeId];
     shape(ctx, cell, k, t, opts, time);
 
+    // Капкан с добычей во рту показывает, сколько ещё жевать
+    if (opts.busy > 0 && opts.busyMax) {
+      ctx.save();
+      ctx.globalAlpha = 0.8;
+      Draw.bar(ctx, -cell * 0.22, cell * 0.30, cell * 0.44, Math.max(3, 3 * k),
+        1 - opts.busy / opts.busyMax, PAL.gridLine, t.color);
+      ctx.restore();
+    }
+
     if (opts.level > 1) Units.tierMark(ctx, cell, k, t, opts.level, time);
 
     ctx.restore();
@@ -305,6 +374,19 @@ var Units = {
       ctx.globalAlpha = Math.min(1, opts.flash) * 0.3;
       Draw.circle(ctx, x, y - cell * 0.30 * s, 6.5 * k * s);
       ctx.fill();
+      ctx.restore();
+    }
+
+    // Аномалия: колонка отключена, юнит мигает фиолетовым
+    if (opts.stunned) {
+      ctx.save();
+      ctx.globalAlpha = 0.25 + 0.25 * Math.sin(time * 14);
+      ctx.strokeStyle = '#A855F7';
+      ctx.lineWidth = Math.max(1, 2 * k);
+      ctx.setLineDash([4 * k, 3 * k]);
+      Draw.roundRect(ctx, x - cell * 0.34, y - cell * 0.34, cell * 0.68, cell * 0.68, cell * 0.12);
+      ctx.stroke();
+      ctx.setLineDash([]);
       ctx.restore();
     }
 
@@ -795,6 +877,199 @@ var Units = {
       ctx.moveTo(0, -u * 0.07); ctx.lineTo(0, u * 0.11);
       ctx.moveTo(-u * 0.09, u * 0.02); ctx.lineTo(u * 0.09, u * 0.02);
       ctx.stroke();
+    },
+
+    /* Шипы: плоская гребёнка на земле */
+    spikes: function (ctx, u, k, t, opts, time) {
+      ctx.lineWidth = Math.max(1, k);
+      ctx.fillStyle = opts.hurt ? '#2A323C' : t.fill;
+      ctx.strokeStyle = t.color;
+      Draw.roundRect(ctx, -u * 0.32, u * 0.06, u * 0.64, u * 0.18, u * 0.05);
+      ctx.fill(); ctx.stroke();
+
+      ctx.fillStyle = t.color;
+      for (var i = 0; i < 5; i++) {
+        var x = -u * 0.26 + i * u * 0.13;
+        Draw.poly(ctx, [[x - u * 0.045, u * 0.06], [x + u * 0.045, u * 0.06], [x, u * 0.06 - u * 0.16]]);
+        ctx.fill();
+      }
+    },
+
+    /* Капкан: раскрытая пасть, в жевании закрывается */
+    chomper: function (ctx, u, k, t, opts, time) {
+      ctx.lineWidth = Math.max(1, k);
+      var open = opts.busy ? 0.08 : 0.30 + 0.05 * Math.sin(time * 2);
+
+      // Стебель
+      ctx.strokeStyle = t.color;
+      ctx.globalAlpha = 0.6;
+      ctx.lineWidth = Math.max(1, 2 * k);
+      ctx.beginPath();
+      ctx.moveTo(0, u * 0.30); ctx.lineTo(0, u * 0.02);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      ctx.lineWidth = Math.max(1, k);
+
+      ctx.fillStyle = opts.hurt ? '#2A323C' : t.fill;
+      // Нижняя челюсть
+      Draw.poly(ctx, [[-u * 0.24, u * 0.04], [u * 0.24, u * 0.04],
+                      [u * 0.16, u * 0.20], [-u * 0.16, u * 0.20]]);
+      ctx.fill(); ctx.stroke();
+      // Верхняя челюсть раскрывается
+      ctx.save();
+      ctx.translate(0, u * 0.02);
+      ctx.rotate(-open);
+      Draw.poly(ctx, [[-u * 0.24, 0], [u * 0.24, 0], [u * 0.16, -u * 0.20], [-u * 0.16, -u * 0.20]]);
+      ctx.fill(); ctx.stroke();
+      ctx.restore();
+
+      ctx.fillStyle = t.color;
+      Draw.circle(ctx, 0, u * 0.11, u * 0.03); ctx.fill();
+    },
+
+    /* Молния: катушка с дугой разряда */
+    tesla: function (ctx, u, k, t, opts, time) {
+      ctx.lineWidth = Math.max(1, k);
+      Units.body(ctx, t, opts, u * 0.34, u * 0.34, u * 0.08, u * 0.12);
+
+      // Катушка
+      ctx.strokeStyle = t.color;
+      ctx.globalAlpha = 0.7;
+      for (var i = 0; i < 3; i++) {
+        ctx.beginPath();
+        ctx.ellipse(0, u * 0.02 + i * u * 0.075, u * 0.14, u * 0.035, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+
+      // Шар и разряд
+      ctx.fillStyle = t.color;
+      var pulse = 0.5 + 0.5 * Math.sin(time * 8);
+      ctx.globalAlpha = 0.25 + 0.35 * pulse;
+      Draw.circle(ctx, 0, -u * 0.20, u * 0.12); ctx.fill();
+      ctx.globalAlpha = 1;
+      Draw.circle(ctx, 0, -u * 0.20, u * 0.055); ctx.fill();
+
+      ctx.strokeStyle = t.color;
+      ctx.lineWidth = Math.max(1, 1.2 * k);
+      ctx.beginPath();
+      ctx.moveTo(-u * 0.10, -u * 0.30);
+      ctx.lineTo(-u * 0.03, -u * 0.24);
+      ctx.lineTo(-u * 0.08, -u * 0.18);
+      ctx.stroke();
+    },
+
+    /* Гарпун: станок с наконечником и тросом */
+    harpoon: function (ctx, u, k, t, opts, time) {
+      ctx.lineWidth = Math.max(1, k);
+      Units.body(ctx, t, opts, u * 0.42, u * 0.32, u * 0.09, u * 0.14);
+
+      // Направляющая
+      ctx.fillStyle = opts.hurt ? '#2A323C' : t.fill;
+      ctx.strokeStyle = t.color;
+      Draw.roundRect(ctx, -u * 0.05, -u * 0.26, u * 0.10, u * 0.34, u * 0.03);
+      ctx.fill(); ctx.stroke();
+
+      // Наконечник
+      ctx.fillStyle = t.color;
+      Draw.poly(ctx, [[0, -u * 0.36], [u * 0.09, -u * 0.22], [-u * 0.09, -u * 0.22]]);
+      ctx.fill();
+
+      // Трос
+      ctx.strokeStyle = t.color;
+      ctx.globalAlpha = 0.45;
+      ctx.beginPath();
+      ctx.moveTo(-u * 0.14, u * 0.12);
+      ctx.quadraticCurveTo(0, u * 0.04, u * 0.14, u * 0.12);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    },
+
+    /* Зонт: купол на короткой ножке */
+    umbrella: function (ctx, u, k, t, opts, time) {
+      ctx.lineWidth = Math.max(1, k);
+
+      // Ножка
+      ctx.strokeStyle = t.color;
+      ctx.globalAlpha = 0.6;
+      ctx.lineWidth = Math.max(1, 2 * k);
+      ctx.beginPath();
+      ctx.moveTo(0, u * 0.28); ctx.lineTo(0, -u * 0.04);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      ctx.lineWidth = Math.max(1, k);
+
+      // Купол
+      ctx.fillStyle = opts.hurt ? '#2A323C' : t.fill;
+      ctx.beginPath();
+      ctx.moveTo(-u * 0.32, -u * 0.04);
+      ctx.quadraticCurveTo(0, -u * 0.40, u * 0.32, -u * 0.04);
+      ctx.closePath();
+      ctx.fill(); ctx.stroke();
+
+      // Рёбра
+      ctx.globalAlpha = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(-u * 0.16, -u * 0.04); ctx.quadraticCurveTo(-u * 0.14, -u * 0.24, 0, -u * 0.30);
+      ctx.moveTo(u * 0.16, -u * 0.04); ctx.quadraticCurveTo(u * 0.14, -u * 0.24, 0, -u * 0.30);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    },
+
+    /* Маятник: груз на подвесе, ходит из стороны в сторону */
+    pendulum: function (ctx, u, k, t, opts, time) {
+      ctx.lineWidth = Math.max(1, k);
+      var sway = Math.sin(time * 2.2) * 0.5;
+
+      // Рама
+      ctx.strokeStyle = t.color;
+      ctx.globalAlpha = 0.55;
+      ctx.lineWidth = Math.max(1, 1.6 * k);
+      ctx.beginPath();
+      ctx.moveTo(-u * 0.26, u * 0.28); ctx.lineTo(0, -u * 0.26);
+      ctx.lineTo(u * 0.26, u * 0.28);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+
+      // Подвес с грузом
+      ctx.save();
+      ctx.translate(0, -u * 0.26);
+      ctx.rotate(sway);
+      ctx.strokeStyle = t.color;
+      ctx.lineWidth = Math.max(1, 1.2 * k);
+      ctx.beginPath();
+      ctx.moveTo(0, 0); ctx.lineTo(0, u * 0.34);
+      ctx.stroke();
+      ctx.fillStyle = opts.hurt ? '#2A323C' : t.fill;
+      Draw.circle(ctx, 0, u * 0.40, u * 0.11);
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = t.color;
+      Draw.circle(ctx, 0, u * 0.40, u * 0.04);
+      ctx.fill();
+      ctx.restore();
+    },
+
+    /* Сеть: катушка с растянутым полотном */
+    net: function (ctx, u, k, t, opts, time) {
+      ctx.lineWidth = Math.max(1, k);
+      Units.body(ctx, t, opts, u * 0.40, u * 0.30, u * 0.08, u * 0.15);
+
+      // Полотно
+      ctx.strokeStyle = t.color;
+      ctx.globalAlpha = 0.75;
+      ctx.lineWidth = Math.max(1, k);
+      ctx.beginPath();
+      for (var i = -2; i <= 2; i++) {
+        ctx.moveTo(i * u * 0.09, -u * 0.30);
+        ctx.lineTo(i * u * 0.09 * 0.55, -u * 0.04);
+      }
+      for (var j = 0; j < 3; j++) {
+        var y = -u * 0.28 + j * u * 0.10;
+        var half = u * 0.19 * (1 - j * 0.22);
+        ctx.moveTo(-half, y); ctx.lineTo(half, y);
+      }
+      ctx.stroke();
+      ctx.globalAlpha = 1;
     },
 
     /* Мина: диск с шипами и мигающим взрывателем */

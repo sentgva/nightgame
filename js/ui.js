@@ -40,13 +40,6 @@ var UI = {
       levelList: $('level-list'),
       levelsTitle: $('levels-title'),
       planetView: $('planet-view'),
-      planetCanvas: $('planet-canvas'),
-      planetTitle: $('planet-title'),
-      planetSub: $('planet-sub'),
-      planetDesc: $('planet-desc'),
-      planetProgress: $('planet-progress'),
-      planetDots: $('planet-dots'),
-      planetOpen: $('planet-open'),
       codexList: $('codex-list'),
       btnDev: $('btn-dev'),
       btnDevGame: $('btn-dev-game'),
@@ -64,7 +57,6 @@ var UI = {
 
     this.drawMenuMark();
     this.bindMenu();
-    this.bindPlanets();
     this.bindGameChrome();
     this.bindOverlays();
     this.syncSoundButton();
@@ -80,7 +72,8 @@ var UI = {
     if (name === 'codex') this.buildCodex();
   },
 
-  /* Знак на главном экране: рубеж, за которым свет */
+  /* Знак на главном экране: луна над рубежом. Чем проще, тем лучше
+     читается на маленьком экране. */
   drawMenuMark: function () {
     var cv = document.getElementById('menu-mark-canvas');
     if (!cv) return;
@@ -90,23 +83,23 @@ var UI = {
     var ctx = cv.getContext('2d');
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    // Два врага сверху, защитник снизу, рубеж между ними
-    ctx.fillStyle = PAL.fillEnemy;
-    Draw.roundRect(ctx, 28, 14, 22, 22, 5); ctx.fill();
-    ctx.strokeStyle = PAL.gridLine; ctx.lineWidth = 1; ctx.stroke();
-    Draw.roundRect(ctx, 70, 24, 22, 22, 5); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = PAL.enemy;
-    Draw.circle(ctx, 35, 23, 1.6); ctx.fill();
-    Draw.circle(ctx, 43, 23, 1.6); ctx.fill();
-    Draw.circle(ctx, 77, 33, 1.6); ctx.fill();
-    Draw.circle(ctx, 85, 33, 1.6); ctx.fill();
-
-    Units.draw(ctx, 60, 74, 46, 'shooter', { level: 1, flash: 0 });
-
-    ctx.globalAlpha = 0.18; ctx.fillStyle = PAL.danger;
-    ctx.fillRect(10, 100, 100, 6);
+    // Луна
+    ctx.globalAlpha = 0.14;
+    ctx.fillStyle = PAL.spark;
+    Draw.circle(ctx, 60, 48, 34);
+    ctx.fill();
     ctx.globalAlpha = 1;
-    ctx.fillRect(10, 102, 100, 2);
+    ctx.strokeStyle = PAL.spark;
+    ctx.lineWidth = 1.5;
+    Draw.circle(ctx, 60, 48, 26);
+    ctx.stroke();
+
+    // Рубеж под ней
+    ctx.globalAlpha = 0.18;
+    ctx.fillStyle = PAL.danger;
+    ctx.fillRect(14, 96, 92, 6);
+    ctx.globalAlpha = 1;
+    ctx.fillRect(14, 98, 92, 2);
   },
 
   bindMenu: function () {
@@ -155,26 +148,22 @@ var UI = {
 
   /* ======================================================================
      ПЛАНЕТЫ
-     Карусель из трёх шаров: стрелки и свайп листают, перетаскивание крутит,
-     тап открывает список уровней планеты.
+     Три акта друг под другом, в каждом по три планеты. Шар крутится сам,
+     его можно подкрутить перетаскиванием, тап открывает уровни планеты.
      ====================================================================== */
-  planetIndex: 0,
   planetAngle: 0,
-  planetSpin: 0,
   planetRaf: 0,
   planetLast: 0,
-  planetSize: 220,
-  planetCtx: null,
+  planetCards: [],
 
   showPlanets: function () {
     this.el.planetView.classList.remove('hidden');
     this.el.levelList.classList.add('hidden');
     this.el.levelsTitle.textContent = 'Планеты';
-    this.syncPlanet();
+    this.buildActs();
     this.startPlanetLoop();
   },
 
-  /* Докуда открыта кампания. В dev-режиме — вся. */
   maxOpen: function () {
     return Storage.data.dev ? Waves.total : Storage.data.maxLevel;
   },
@@ -183,69 +172,93 @@ var UI = {
     return Waves.firstOfPlanet(planet.id) > this.maxOpen();
   },
 
-  syncPlanet: function () {
-    var p = PLANETS[this.planetIndex];
+  buildActs: function () {
+    var box = document.getElementById('acts');
+    box.innerHTML = '';
+    this.planetCards = [];
     var d = Storage.data;
-    var levels = Waves.ofPlanet(p.id);
-    var locked = this.planetLocked(p);
-    var got = 0;
-    for (var i = 0; i < levels.length; i++) got += (d.stars[levels[i].id] || 0);
+    var self = this;
 
-    this.el.planetTitle.textContent = p.name;
-    this.el.planetSub.textContent = 'Акт ' + p.act + ' · ' + p.sub;
-    this.el.planetDesc.textContent = locked
-      ? 'Откроется, когда пройдёшь предыдущую планету'
-      : p.desc;
-    this.el.planetProgress.textContent = locked
-      ? 'Заблокирована'
-      : got + ' из ' + (levels.length * 3) + ' звёзд · ' + levels.length + ' уровней';
-    this.el.planetProgress.classList.toggle('locked', locked);
-    this.el.planetOpen.style.opacity = locked ? '.4' : '1';
+    for (var a = 1; a <= 3; a++) {
+      var planets = Waves.ofAct(a);
+      if (!planets.length) continue;
+      var actLocked = this.planetLocked(planets[0]);
 
-    var dots = this.el.planetDots;
-    dots.innerHTML = '';
-    for (var j = 0; j < PLANETS.length; j++) {
-      var dot = document.createElement('i');
-      if (j === this.planetIndex) dot.className = 'on';
-      dots.appendChild(dot);
+      var act = document.createElement('div');
+      act.className = 'act' + (actLocked ? ' locked' : '');
+
+      var head = document.createElement('div');
+      head.className = 'act-head';
+      var got = 0, total = 0;
+      for (var q = 0; q < planets.length; q++) {
+        var lv = Waves.ofPlanet(planets[q].id);
+        total += lv.length * 3;
+        for (var z = 0; z < lv.length; z++) got += (d.stars[lv[z].id] || 0);
+      }
+      head.innerHTML = '<span class="act-num">Акт ' + a + '</span>' +
+        '<span class="act-sub">' + (actLocked ? 'Закрыт' : got + ' из ' + total + ' звёзд') + '</span>';
+      act.appendChild(head);
+
+      var row = document.createElement('div');
+      row.className = 'act-row';
+      for (var i = 0; i < planets.length; i++) {
+        row.appendChild(this.makePlanetCard(planets[i], d));
+      }
+      act.appendChild(row);
+      box.appendChild(act);
     }
   },
 
-  planetGo: function (dir) {
-    this.planetIndex = (this.planetIndex + dir + PLANETS.length) % PLANETS.length;
-    this.planetSpin = dir * 4;        // подкрутка в сторону листания
-    this.syncPlanet();
-  },
-
-  bindPlanets: function () {
+  makePlanetCard: function (planet, d) {
     var self = this;
-    document.getElementById('planet-prev').addEventListener('click', function () { self.planetGo(-1); });
-    document.getElementById('planet-next').addEventListener('click', function () { self.planetGo(1); });
-    this.el.planetOpen.addEventListener('click', function () { self.openPlanetLevels(); });
+    var locked = this.planetLocked(planet);
+    var levels = Waves.ofPlanet(planet.id);
+    var got = 0;
+    for (var i = 0; i < levels.length; i++) got += (d.stars[levels[i].id] || 0);
+    var current = !locked && d.maxLevel >= levels[0].id && d.maxLevel <= levels[levels.length - 1].id;
 
-    var cv = this.el.planetCanvas;
+    var card = document.createElement('div');
+    card.className = 'planet-card' + (locked ? ' locked' : '') + (current ? ' current' : '');
+
+    var size = Math.max(64, Math.min(96, Math.floor((window.innerWidth - 90) / 3)));
+    var cv = document.createElement('canvas');
+    var dpr = Math.min(window.devicePixelRatio || 1, 3);
+    cv.width = Math.round(size * dpr);
+    cv.height = Math.round(size * dpr);
+    cv.style.width = size + 'px';
+    cv.style.height = size + 'px';
+    var ctx = cv.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    var entry = { planet: planet, ctx: ctx, size: size, spin: 0, locked: locked };
+    this.planetCards.push(entry);
+
+    var name = document.createElement('div');
+    name.className = 'pc-name';
+    name.textContent = planet.name;
+    var score = document.createElement('div');
+    score.className = 'pc-score';
+    score.textContent = locked ? 'Закрыта' : got + ' / ' + (levels.length * 3);
+
+    card.appendChild(cv);
+    card.appendChild(name);
+    card.appendChild(score);
+
+    // Тап открывает уровни, протяжка подкручивает шар
     var dragging = false, lastX = 0, total = 0;
     var down = function (x) { dragging = true; lastX = x; total = 0; };
     var move = function (x) {
       if (!dragging) return;
       var dx = x - lastX; lastX = x; total += dx;
-      self.planetAngle -= dx * 0.012;
-      self.planetSpin = -dx * 0.5;
+      entry.spin = -dx * 0.6;
     };
     var up = function () {
       if (!dragging) return;
       dragging = false;
-      if (Math.abs(total) < 8) self.openPlanetLevels();      // тап
-      else if (total < -60) self.planetGo(1);                // свайп влево
-      else if (total > 60) self.planetGo(-1);
+      if (Math.abs(total) < 8) self.openPlanetLevels(planet);
     };
-
     if (window.PointerEvent) {
-      cv.addEventListener('pointerdown', function (e) {
-        e.preventDefault();
-        if (cv.setPointerCapture) { try { cv.setPointerCapture(e.pointerId); } catch (err) {} }
-        down(e.clientX);
-      });
+      cv.addEventListener('pointerdown', function (e) { e.preventDefault(); down(e.clientX); });
       cv.addEventListener('pointermove', function (e) { move(e.clientX); });
       cv.addEventListener('pointerup', up);
       cv.addEventListener('pointercancel', up);
@@ -253,29 +266,21 @@ var UI = {
       cv.addEventListener('touchstart', function (e) { down(e.changedTouches[0].clientX); }, { passive: true });
       cv.addEventListener('touchmove', function (e) { move(e.changedTouches[0].clientX); }, { passive: true });
       cv.addEventListener('touchend', up);
-      cv.addEventListener('mousedown', function (e) { down(e.clientX); });
-      cv.addEventListener('mousemove', function (e) { move(e.clientX); });
-      cv.addEventListener('mouseup', up);
     }
+    // По подписи тоже можно тапнуть
+    card.addEventListener('click', function (e) {
+      if (e.target === cv) return;
+      self.openPlanetLevels(planet);
+    });
+
+    return card;
   },
 
   startPlanetLoop: function () {
-    var cv = this.el.planetCanvas;
-    var size = Math.max(170, Math.min(250, window.innerWidth - 130));
-    var dpr = Math.min(window.devicePixelRatio || 1, 3);
-    cv.width = Math.round(size * dpr);
-    cv.height = Math.round(size * dpr);
-    cv.style.width = size + 'px';
-    cv.style.height = size + 'px';
-    this.planetSize = size;
-    this.planetCtx = cv.getContext('2d');
-    this.planetCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
     if (this.planetRaf) return;
     var self = this;
     this.planetLast = 0;
     var loop = function (ts) {
-      // Цикл живёт только пока карусель на экране
       if (!self.el.screens.levels.classList.contains('active') ||
           self.el.planetView.classList.contains('hidden')) {
         self.planetRaf = 0;
@@ -284,9 +289,12 @@ var UI = {
       self.planetRaf = requestAnimationFrame(loop);
       var dt = self.planetLast ? Math.min(0.05, (ts - self.planetLast) / 1000) : 0.016;
       self.planetLast = ts;
-      self.planetAngle += (0.25 + self.planetSpin) * dt;
-      self.planetSpin *= Math.pow(0.03, dt);     // инерция гаснет
-      self.drawPlanet();
+      self.planetAngle += 0.22 * dt;
+      for (var i = 0; i < self.planetCards.length; i++) {
+        var c = self.planetCards[i];
+        c.spin *= Math.pow(0.03, dt);
+        self.drawPlanet(c, self.planetAngle + (c.spin ? 0 : 0) + c.offset || 0);
+      }
     };
     this.planetRaf = requestAnimationFrame(loop);
   },
@@ -297,7 +305,7 @@ var UI = {
     if (this._feat[p.id]) return this._feat[p.id];
     var rand = rng(p.id * 977 + 5);
     var arr = [];
-    var n = p.feature === 'craters' ? 16 : 11;
+    var n = p.feature === 'craters' ? 14 : 10;
     for (var i = 0; i < n; i++) {
       arr.push({
         lon: rand() * Math.PI * 2,
@@ -309,37 +317,37 @@ var UI = {
     return arr;
   },
 
-  drawPlanet: function () {
-    var ctx = this.planetCtx;
+  drawPlanet: function (entry) {
+    var ctx = entry.ctx;
     if (!ctx) return;
-    var size = this.planetSize;
-    var p = PLANETS[this.planetIndex];
-    var locked = this.planetLocked(p);
+    var size = entry.size;
+    var p = entry.planet;
+    var locked = entry.locked;
     var col = locked ? PAL.textMuted : p.color;
     var fill = locked ? '#141A22' : p.fill;
     var cx = size / 2, cy = size / 2, r = size * 0.36;
-    var ang = this.planetAngle;
+
+    // У каждой планеты свой сдвиг фазы, иначе девять шаров крутятся синхронно
+    entry.phase = (entry.phase || 0) + 0;
+    var ang = this.planetAngle * (0.7 + p.id * 0.07) + p.id * 1.3 + entry.spin * 0.02;
 
     ctx.clearRect(0, 0, size, size);
 
-    // Кольцо станции: задняя половина уходит за шар
     if (p.ring) {
       ctx.save();
       ctx.globalAlpha = locked ? 0.15 : 0.35;
       ctx.strokeStyle = col;
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.ellipse(cx, cy, r * 1.45, r * 0.34, -0.35, Math.PI, Math.PI * 2);
+      ctx.ellipse(cx, cy, r * 1.42, r * 0.32, -0.35, Math.PI, Math.PI * 2);
       ctx.stroke();
       ctx.restore();
     }
 
-    // Диск
     ctx.fillStyle = fill;
     Draw.circle(ctx, cx, cy, r);
     ctx.fill();
 
-    // Поверхность
     ctx.save();
     Draw.circle(ctx, cx, cy, r);
     ctx.clip();
@@ -349,7 +357,7 @@ var UI = {
       var f = feats[i];
       var a = f.lon + ang;
       var cosA = Math.cos(a);
-      if (cosA <= 0.06) continue;                     // деталь на обратной стороне
+      if (cosA <= 0.06) continue;
       var x = cx + Math.sin(a) * r * Math.cos(f.lat);
       var y = cy + Math.sin(f.lat) * r;
       var rr = r * f.s * cosA;
@@ -376,43 +384,40 @@ var UI = {
       }
     }
 
-    // Терминатор: тень на убегающей стороне даёт объём без градиентов в телах
     ctx.globalAlpha = 1;
     ctx.fillStyle = 'rgba(10,14,20,0.55)';
     Draw.circle(ctx, cx + r * 0.62, cy - r * 0.18, r * 1.08);
     ctx.fill();
     ctx.restore();
 
-    // Обводка и атмосфера
     ctx.strokeStyle = col;
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = 1.2;
     Draw.circle(ctx, cx, cy, r);
     ctx.stroke();
     ctx.globalAlpha = locked ? 0.08 : 0.18;
-    ctx.lineWidth = 6;
-    Draw.circle(ctx, cx, cy, r + 4);
+    ctx.lineWidth = 5;
+    Draw.circle(ctx, cx, cy, r + 3);
     ctx.stroke();
     ctx.globalAlpha = 1;
 
-    // Передняя половина кольца
     if (p.ring) {
       ctx.globalAlpha = locked ? 0.2 : 0.55;
       ctx.strokeStyle = col;
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.ellipse(cx, cy, r * 1.45, r * 0.34, -0.35, 0, Math.PI);
+      ctx.ellipse(cx, cy, r * 1.42, r * 0.32, -0.35, 0, Math.PI);
       ctx.stroke();
       ctx.globalAlpha = 1;
     }
 
-    if (locked) this.drawLock(ctx, cx, cy, size * 0.075);
+    if (locked) this.drawLock(ctx, cx, cy, size * 0.08);
   },
 
   drawLock: function (ctx, cx, cy, s) {
     ctx.save();
     ctx.strokeStyle = PAL.textMuted;
     ctx.fillStyle = PAL.bgDeep;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 1.6;
     ctx.beginPath();
     ctx.arc(cx, cy - s * 0.35, s * 0.55, Math.PI, 0);
     ctx.stroke();
@@ -423,26 +428,39 @@ var UI = {
   },
 
   /* ---------------- Уровни выбранной планеты ---------------- */
-  openPlanetLevels: function () {
-    var p = PLANETS[this.planetIndex];
-    if (this.planetLocked(p)) {
+  openPlanetLevels: function (planet) {
+    if (this.planetLocked(planet)) {
       this.toast('Планета ещё закрыта');
       return;
     }
     Sound.resume();
-    this.buildLevels(p);
+    this.buildLevels(planet);
     this.el.planetView.classList.add('hidden');
     this.el.levelList.classList.remove('hidden');
-    this.el.levelsTitle.textContent = p.name;
+    this.el.levelsTitle.textContent = planet.name;
   },
 
   buildLevels: function (planet) {
     var list = this.el.levelList;
     list.innerHTML = '';
     var d = Storage.data;
+
+    // Шапка планеты: механика, описание и её набор защитников
+    var banner = document.createElement('div');
+    banner.className = 'planet-banner';
+    banner.innerHTML = '<div class="pb-mech">' + planet.mechanic + '</div>' +
+      '<div class="pb-desc">' + planet.desc + '</div>';
+    var roster = document.createElement('div');
+    roster.className = 'pb-roster';
+    var ids = CORE_UNITS.concat(planet.roster);
+    for (var q = 0; q < ids.length; q++) {
+      roster.appendChild(this.unitCanvas(ids[q], 1, 30, ids[q] === 'mine' ? 60 : 34));
+    }
+    banner.appendChild(roster);
+    list.appendChild(banner);
+
     var levels = Waves.ofPlanet(planet.id);
     for (var j = 0; j < levels.length; j++) {
-      // Внутри планеты уровни нумеруются с единицы
       list.appendChild(this.makeLevelNode(levels[j], j + 1, d));
     }
   },

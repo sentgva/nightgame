@@ -68,7 +68,7 @@ var ENEMY_TYPES = {
   shielder: {
     id: 'shielder', name: 'Щитоносец',
     hp: 220, speed: 0.14, damage: 18, atkRate: 0.8,
-    auraGuard: 0.72, auraRange: 2,            // вдвое режет урон по соседям
+    auraGuard: 0.8, auraRange: 2,            // вдвое режет урон по соседям
     scale: 1.1, spark: 40, sparkChance: 0.7
   },
   devourer: {
@@ -112,6 +112,7 @@ var Enemies = {
       phaseT: Math.random() * (t.phaseEvery || 1),
       spawnEveryT: t.spawnEvery || 0,
       devourLeft: t.devour || 0,
+      rootT: 0,                   // пригвождён сетью: стоит, но бьётся
       hasted: false,              // подсветка ауры ревуна
       guarded: false,             // подсветка ауры щитоносца
       phased: false,              // в фазе снаряды проходят насквозь
@@ -179,6 +180,22 @@ var Enemies = {
 
     var shape = Enemies.shapes[enemy.type] || Enemies.shapes.walker;
     shape(ctx, cell, k, enemy, time, gait);
+
+    // Сеть: враг пригвождён к месту
+    if (enemy.rootT > 0) {
+      ctx.save();
+      ctx.globalAlpha *= 0.7;
+      ctx.strokeStyle = '#84CC16';
+      ctx.lineWidth = Math.max(1, 1.2 * k);
+      var h = Enemies.bodySize(enemy, cell) * 0.5;
+      ctx.beginPath();
+      for (var q = -1; q <= 1; q++) {
+        ctx.moveTo(q * h * 0.7, -h); ctx.lineTo(q * h * 0.7, h);
+        ctx.moveTo(-h, q * h * 0.7); ctx.lineTo(h, q * h * 0.7);
+      }
+      ctx.stroke();
+      ctx.restore();
+    }
 
     // Аура соседей: видно, кого прикрыли или разогнали
     if (enemy.guarded) {

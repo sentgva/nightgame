@@ -33,6 +33,9 @@ var CONFIG = {
   iceThaw: 10,             // само оттаивает за столько секунд, если не тапнуть
   sporeTime: 6,            // сколько секунд споры душат темп стрельбы
   sporeSlow: 2,            // во сколько раз реже стреляет заспоренный юнит
+  meteorWarn: 1.6,         // сколько секунд метеор светится перед ударом
+  meteorDamage: 140,
+  glitchTime: 3,           // на сколько аномалия отключает колонку
   breachPulseCells: 2      // за сколько клеток до рубежа он начинает пульсировать
 };
 
@@ -52,7 +55,8 @@ var Game = {
   trickleAcc: 0,
   cardCd: {},
   selected: null, lastPlaceTs: 0, menuUnit: null,
-  iceT: 0, collapseT: 0, sporeT: 0,
+  iceT: 0, collapseT: 0, sporeT: 0, meteorT: 0, glitchT: 0,
+  meteors: [], bolts: [], darkY: 0, harvestT: 0,
   dev: false, devImmortal: true,
   shake: 0, edgeFlash: 0,
 
@@ -106,6 +110,12 @@ var Game = {
     this.iceT = this.level.iceEvery || 0;
     this.collapseT = this.level.collapseEvery || 0;
     this.sporeT = this.level.sporeEvery || 0;
+    this.meteorT = this.level.meteorEvery || 0;
+    this.harvestT = this.level.harvestEvery || 0;
+    this.glitchT = this.level.glitchEvery || 0;
+    this.meteors.length = 0;
+    this.bolts.length = 0;
+    this.darkY = 0;
     this.sparks = this.level.startSparks;
     this.lives = CONFIG.lives;
     this.waveIndex = 0;
@@ -209,6 +219,14 @@ var Game = {
     this.stepIce(dt);
     this.stepCollapse(dt);
     this.stepSpores(dt);
+    this.stepMeteors(dt);
+    this.stepGlitch(dt);
+    this.stepHarvest(dt);
+    for (var bi = this.bolts.length - 1; bi >= 0; bi--) {
+      this.bolts[bi].t -= dt;
+      if (this.bolts[bi].t <= 0) this.bolts.splice(bi, 1);
+    }
+    if (this.level && this.level.darkBand) this.darkY = (this.darkY + dt * Grid.cell * 0.55) % (Grid.h + Grid.cell * 3);
     this.stepWaves(dt);
 
     UI.tickCards(this);
@@ -224,7 +242,72 @@ var Game = {
       if (u.flash > 0) u.flash -= dt / 0.08;
       if (u.hurt > 0) u.hurt -= dt;
       if (u.frozen > 0) { u.frozen = Math.max(0, u.frozen - dt); return; }
+      if (u.stunned > 0) { u.stunned = Math.max(0, u.stunned - dt); return; }
       if (u.spored > 0) u.spored = Math.max(0, u.spored - dt);
+
+      // Шипы режут всех, кто стоит на их клетке
+      if (u.def.tickDamage) {
+        var sy = Grid.centerY(row);
+        for (var si = 0; si < self.enemies.length; si++) {
+          var se = self.enemies[si];
+          if (se.dead || se.phased || !self.enemyCoversColumn(se, col)) continue;
+          if (Math.abs(se.y - sy) < Grid.cell * 0.45) self.hitEnemy(se, Units.stat(u, 'tickDamage') * dt);
+        }
+        return;
+      }
+
+      // Капкан: глотает одного врага целиком, потом долго жуёт
+      if (u.def.swallow) {
+        if (u.busy > 0) { u.busy = Math.max(0, u.busy - dt); return; }
+        var cy2 = Grid.centerY(row);
+        for (var ci = 0; ci < self.enemies.length; ci++) {
+          var ce = self.enemies[ci];
+          if (ce.dead || ce.phased || ce.def.boss) continue;       // босса не проглотить
+          if (!self.enemyCoversColumn(ce, col)) continue;
+          if (ce.y > cy2 + Grid.cell * 0.2 || cy2 - ce.y > u.def.range * Grid.cell) continue;
+          u.busy = Units.stat(u, 'chewTime');
+          u.flash = 1;
+          Sound.play('shotBig');
+          self.killEnemy(ce);
+          break;
+        }
+        return;
+      }
+
+      // Сеть: пригвождает ближайшего врага в колонке
+      if (u.def.root) {
+        u.cd -= dt;
+        if (u.cd > 0) return;
+        var victim = self.findEnemyForUnit(u, col, row);
+        if (!victim) { u.cd = 0.25; return; }
+        u.cd = 1 / u.def.fireRate;
+        u.flash = 1;
+        victim.rootT = Math.max(victim.rootT, Units.stat(u, 'root'));
+        Sound.play('freeze');
+        self.spawnParticles(Enemies.centerX(victim, Grid.cell), victim.y, 5, u.def.color, 120, 0.3, false);
+        return;
+      }
+
+      // Зонт: пассивно сбивает плевки, отдельного тика не нужно
+      if (u.def.shieldRange) return;
+
+      // Молния: цепь по ближайшим врагам в радиусе
+      if (u.def.chain) {
+        u.cd -= dt;
+        if (u.cd > 0) return;
+        var struck = self.chainStrike(u, col, row);
+        u.cd = struck ? (1 / u.def.fireRate) : 0.25;
+        return;
+      }
+
+      // Маятник: косит вплотную свою и соседние колонки
+      if (u.def.sweep) {
+        u.cd -= dt;
+        if (u.cd > 0) return;
+        var hitAny = self.sweepStrike(u, col, row);
+        u.cd = hitAny ? (1 / u.def.fireRate) : 0.2;
+        return;
+      }
 
       // Ремонтник чинит соседей по сторонам света
       if (u.def.repair) {
@@ -341,6 +424,7 @@ var Game = {
     p.color = u.def.color;
     p.boosted = false;
     p.splash = u.def.splash || 0;
+    p.pull = u.def.pull || 0;
     p.pierce = !!u.def.pierce;
     p.hits = p.hits || [];
     p.hits.length = 0;
@@ -485,6 +569,7 @@ var Game = {
         continue;
       }
 
+      if (e.rootT > 0) { e.rootT = Math.max(0, e.rootT - dt); continue; }
       e.y += e.speed * cell * dt * slowMul;
 
       // Прорыв рубежа
@@ -503,7 +588,7 @@ var Game = {
     for (var r = 0; r < Grid.rows; r++) {
       for (var c = e.col; c < e.col + e.width; c++) {
         var u = Grid.get(c, r);
-        if (!u || u.dead || u.type === 'mine') continue;
+        if (!u || u.dead || u.def.ground) continue;    // по минам и шипам просто идут
         var cy = Grid.centerY(r);
         if (front >= cy - cell * 0.30 && e.y <= cy + cell * 0.30) return u;
       }
@@ -517,7 +602,7 @@ var Game = {
     for (var r = 0; r < Grid.rows; r++) {
       for (var c = e.col; c < e.col + e.width; c++) {
         var u = Grid.get(c, r);
-        if (!u || u.dead || u.type === 'mine') continue;
+        if (!u || u.dead || u.def.ground) continue;
         var cy = Grid.centerY(r);
         if (cy > e.y && cy - e.y <= cells * cell) return u;
       }
@@ -647,6 +732,26 @@ var Game = {
       if (p.dist > p.maxDist || p.y < -cell || p.y > Grid.h + cell) { p.active = false; continue; }
 
       if (p.hostile) {
+        // Зонт над колонкой сбивает плевок на подлёте
+        var urow = Math.floor(p.y / cell);
+        var blockedBy = null;
+        for (var uc = p.col - 2; uc <= p.col + 2 && !blockedBy; uc++) {
+          for (var ur = 0; ur < Grid.rows; ur++) {
+            var uu = Grid.get(uc, ur);
+            if (!uu || uu.dead || !uu.def.shieldRange) continue;
+            if (Math.abs(uc - p.col) > Units.stat(uu, 'shieldRange')) continue;
+            if (Math.abs(ur - urow) > 1) continue;
+            blockedBy = uu;
+            break;
+          }
+        }
+        if (blockedBy) {
+          blockedBy.flash = 1;
+          this.spawnParticles(p.x, p.y, 4, blockedBy.def.color, 110, 0.25, false);
+          p.active = false;
+          continue;
+        }
+
         // Плевок ищет защитника в своей колонке
         var row = Math.floor(p.y / cell);
         var u = Grid.get(p.col, row);
@@ -688,6 +793,7 @@ var Game = {
         }
 
         if (p.slow > 0) { e.slowT = Math.max(e.slowT, p.slowTime); }
+        if (p.pull > 0) e.y = Math.max(-cell * 0.4, e.y - p.pull * cell);
         if (p.splash > 0) this.splashHit(p, e);
         else this.hitEnemy(e, p.dmg);
         this.spawnParticles(p.x, p.y, 5, p.color, 130, 0.25, true);
@@ -728,6 +834,133 @@ var Game = {
       p.x += p.vx * dt;
       p.y += p.vy * dt;
       p.vy += 260 * dt;     // лёгкая гравитация — частицы оседают
+    }
+  },
+
+  /* Молния: цепь по ближайшим врагам вокруг юнита */
+  chainStrike: function (u, col, row) {
+    var cell = Grid.cell;
+    var ux = Grid.centerX(col), uy = Grid.centerY(row);
+    var reach = u.def.range * cell;
+    var found = [];
+    for (var i = 0; i < this.enemies.length; i++) {
+      var e = this.enemies[i];
+      if (e.dead || e.phased || e.y < -cell * 0.3) continue;
+      var dx = Enemies.centerX(e, cell) - ux, dy = e.y - uy;
+      var d = Math.sqrt(dx * dx + dy * dy);
+      if (d <= reach) found.push({ e: e, d: d });
+    }
+    if (!found.length) return false;
+    found.sort(function (a, b) { return a.d - b.d; });
+
+    u.flash = 1;
+    Sound.play(u.def.shotSound || 'shot');
+    var px = ux, py = uy - cell * 0.2;
+    var dmg = Units.stat(u, 'damage');
+    for (var j = 0; j < Math.min(u.def.chain, found.length); j++) {
+      var t = found[j].e;
+      var tx = Enemies.centerX(t, cell), ty = t.y;
+      this.bolts.push({ x1: px, y1: py, x2: tx, y2: ty, t: 0.16, color: u.def.color });
+      this.spawnParticles(tx, ty, 3, u.def.color, 100, 0.2, true);
+      this.hitEnemy(t, dmg);
+      px = tx; py = ty;
+    }
+    return true;
+  },
+
+  /* Маятник: замах по своей и соседним колонкам вплотную */
+  sweepStrike: function (u, col, row) {
+    var cell = Grid.cell;
+    var uy = Grid.centerY(row);
+    var reach = u.def.range * cell;
+    var dmg = Units.stat(u, 'damage');
+    var hit = false;
+    for (var i = 0; i < this.enemies.length; i++) {
+      var e = this.enemies[i];
+      if (e.dead || e.phased) continue;
+      var near = false;
+      for (var c = col - 1; c <= col + 1; c++) {
+        if (this.enemyCoversColumn(e, c)) { near = true; break; }
+      }
+      if (!near) continue;
+      if (Math.abs(e.y - uy) > reach) continue;
+      this.hitEnemy(e, dmg);
+      this.spawnParticles(Enemies.centerX(e, cell), e.y, 3, u.def.color, 120, 0.2, false);
+      hit = true;
+    }
+    if (hit) {
+      u.flash = 1;
+      Sound.play(u.def.shotSound || 'shot');
+    }
+    return hit;
+  },
+
+  /* Метеоры: клетка сначала светится, потом по ней бьёт */
+  stepMeteors: function (dt) {
+    var every = this.level.meteorEvery;
+    if (every && this.phase === 'wave' && !this.over) {
+      this.meteorT -= dt;
+      if (this.meteorT <= 0) {
+        this.meteorT = every;
+        this.meteors.push({
+          col: Math.floor(Math.random() * Grid.cols),
+          row: Math.floor(Math.random() * Grid.rows),
+          t: CONFIG.meteorWarn
+        });
+      }
+    }
+    for (var i = this.meteors.length - 1; i >= 0; i--) {
+      var m = this.meteors[i];
+      m.t -= dt;
+      if (m.t > 0) continue;
+      var x = Grid.centerX(m.col), y = Grid.centerY(m.row);
+      Sound.play('mine');
+      this.spawnParticles(x, y, 12, PAL.ash, 230, 0.4, false);
+      var u = Grid.get(m.col, m.row);
+      if (u && !u.dead) this.damageUnit(u, CONFIG.meteorDamage);
+      for (var j = 0; j < this.enemies.length; j++) {
+        var e = this.enemies[j];
+        if (e.dead || !this.enemyCoversColumn(e, m.col)) continue;
+        if (Math.abs(e.y - y) < Grid.cell * 0.6) this.hitEnemy(e, CONFIG.meteorDamage);
+      }
+      this.meteors.splice(i, 1);
+    }
+  },
+
+  /* Ферма: поле само роняет зерно. Механика в плюс игроку — первая планета
+     учит подбирать искры, а не наказывает. */
+  stepHarvest: function (dt) {
+    var every = this.level.harvestEvery;
+    if (!every || this.phase !== 'wave' || this.over) return;
+    this.harvestT -= dt;
+    if (this.harvestT > 0) return;
+    this.harvestT = every;
+    this.dropSpark(
+      Grid.centerX(Math.floor(Math.random() * Grid.cols)),
+      Grid.centerY(2 + Math.floor(Math.random() * (Grid.rows - 2))),
+      25
+    );
+  },
+
+  /* Аномалия: случайная колонка защитников замолкает на несколько секунд */
+  stepGlitch: function (dt) {
+    var every = this.level.glitchEvery;
+    if (!every || this.phase !== 'wave' || this.over) return;
+    this.glitchT -= dt;
+    if (this.glitchT > 0) return;
+    this.glitchT = every;
+
+    var col = Math.floor(Math.random() * Grid.cols);
+    var any = false;
+    for (var r = 0; r < Grid.rows; r++) {
+      var u = Grid.get(col, r);
+      if (!u || u.dead) continue;
+      u.stunned = CONFIG.glitchTime;
+      any = true;
+    }
+    if (any) {
+      Sound.play('deny');
+      UI.toast('Аномалия: колонка ' + (col + 1));
     }
   },
 
@@ -1318,10 +1551,13 @@ var Game = {
     this.drawUnits(ctx, cell, k);
     this.drawDrops(ctx, k);
     this.drawEnemies(ctx, cell);
+    this.drawBolts(ctx, k);
     this.drawProjectiles(ctx, k);
     this.drawParticles(ctx);
     this.drawFlights(ctx, k);
     this.drawPopups(ctx, k);
+    this.drawMeteors(ctx, cell, k);
+    if (this.level && this.level.darkBand) this.drawDark(ctx, W, H, cell);
     this.drawVignette(ctx, W, H, k);
     this.drawDefenseLine(ctx, W, H, k, cell);
 
@@ -1409,7 +1645,8 @@ var Game = {
       if (u.type === 'mine') return;
       Units.draw(ctx, Grid.centerX(c), Grid.centerY(r), cell, u.type, {
         level: u.level, flash: u.flash, hurt: u.hurt > 0, time: Game.time,
-        frozen: u.frozen > 0, spored: u.spored > 0,
+        frozen: u.frozen > 0, spored: u.spored > 0, stunned: u.stunned > 0,
+        busy: u.busy, busyMax: u.def.chewTime || 0,
         hp: u.hp, maxHp: u.maxHp, scale: Game.placeScale(u)
       });
     });
@@ -1553,6 +1790,64 @@ var Game = {
       Draw.circle(ctx, x, y, 3 * k * (1 - t * 0.4));
       ctx.fill();
     }
+    ctx.restore();
+  },
+
+  /* Разряды молнии живут пару кадров и рисуются ломаной */
+  drawBolts: function (ctx, k) {
+    if (!this.bolts.length) return;
+    ctx.save();
+    ctx.lineJoin = 'round';
+    for (var i = 0; i < this.bolts.length; i++) {
+      var b = this.bolts[i];
+      ctx.globalAlpha = Math.max(0, b.t / 0.16);
+      ctx.strokeStyle = b.color;
+      ctx.lineWidth = 2 * k;
+      ctx.beginPath();
+      ctx.moveTo(b.x1, b.y1);
+      for (var s = 1; s <= 3; s++) {
+        var f = s / 4;
+        var jx = (Math.random() - 0.5) * 8 * k;
+        ctx.lineTo(b.x1 + (b.x2 - b.x1) * f + jx, b.y1 + (b.y2 - b.y1) * f);
+      }
+      ctx.lineTo(b.x2, b.y2);
+      ctx.stroke();
+    }
+    ctx.restore();
+  },
+
+  /* Метеор: пока светится кольцо — клетку ещё можно освободить */
+  drawMeteors: function (ctx, cell, k) {
+    if (!this.meteors.length) return;
+    ctx.save();
+    for (var i = 0; i < this.meteors.length; i++) {
+      var m = this.meteors[i];
+      var f = 1 - m.t / CONFIG.meteorWarn;
+      var x = Grid.centerX(m.col), y = Grid.centerY(m.row);
+      ctx.globalAlpha = 0.18 + 0.32 * f;
+      ctx.fillStyle = PAL.ash;
+      Draw.circle(ctx, x, y, cell * 0.36 * (0.4 + 0.6 * f));
+      ctx.fill();
+      ctx.globalAlpha = 0.5 + 0.5 * Math.sin(f * 20);
+      ctx.strokeStyle = PAL.danger;
+      ctx.lineWidth = 2 * k;
+      Draw.circle(ctx, x, y, cell * 0.38);
+      ctx.stroke();
+    }
+    ctx.restore();
+  },
+
+  /* Полоса тьмы: враги внутри почти не видны, остаются одни глаза */
+  drawDark: function (ctx, W, H, cell) {
+    var band = cell * 2.2;
+    var y = this.darkY - cell * 1.5;
+    var grad = ctx.createLinearGradient(0, y, 0, y + band);
+    grad.addColorStop(0, 'rgba(6,8,12,0)');
+    grad.addColorStop(0.5, 'rgba(6,8,12,0.88)');
+    grad.addColorStop(1, 'rgba(6,8,12,0)');
+    ctx.save();
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, y, W, band);
     ctx.restore();
   },
 

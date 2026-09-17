@@ -32,6 +32,13 @@ var PAL = {
   uMortar:    '#FB7185',  uMortarF:   '#2A1620',
   uLaser:     '#F1F5F9',  uLaserF:    '#202833',
   uRepair:    '#E879F9',  uRepairF:   '#281630',
+  uSpikes:    '#A8A29E',  uSpikesF:   '#232122',
+  uChomper:   '#15803D',  uChomperF:  '#10241A',
+  uTesla:     '#38BDF8',  uTeslaF:    '#0E2430',
+  uHarpoon:   '#06B6D4',  uHarpoonF:  '#0B2630',
+  uUmbrella:  '#CBD5E1',  uUmbrellaF: '#1E2632',
+  uPendulum:  '#9333EA',  uPendulumF: '#1E1230',
+  uNet:       '#65A30D',  uNetF:      '#1A2410',
 
   fillAlly:   '#16241C',
   fillEnemy:  '#181F2B',

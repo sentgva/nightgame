@@ -11,8 +11,16 @@
      boss     — { wave, count, hpMul }
      hpScale  — множитель HP всех врагов уровня: поздние уровни давят
                 прочностью, а не числом (лишние враги только разгоняли бы доход)
-     craters  — сколько клеток выжжено (механика второй планеты)
-     iceEvery — раз во сколько секунд юнит покрывается льдом (третья планета) */
+     Механики планет (у каждой своя):
+     harvestEvery  — раз во сколько секунд на поле само падает зерно (Ферма)
+     craters       — сколько клеток выжжено (Пустоши)
+     iceEvery      — как часто юнит леденеет (Станция)
+     vines         — сколько клеток заросло (Джунгли)
+     collapseEvery — как часто обваливается свободная клетка (Рудник)
+     sporeEvery    — как часто споры сбивают темп (Улей)
+     darkBand      — по полю ходит полоса тьмы (Разлом)
+     meteorEvery   — как часто бьёт метеор (Печь)
+     glitchEvery   — как часто отключается колонка (Бездна) */
 
 var COLS = 5;
 
@@ -111,7 +119,9 @@ function mk(o) {
     unlock: o.unlock || [],
     craters: o.craters || 0, vines: o.vines || 0,
     iceEvery: o.iceEvery || 0, collapseEvery: o.collapseEvery || 0,
-    sporeEvery: o.sporeEvery || 0,
+    sporeEvery: o.sporeEvery || 0, meteorEvery: o.meteorEvery || 0,
+    glitchEvery: o.glitchEvery || 0, harvestEvery: o.harvestEvery || 0,
+    darkBand: !!o.darkBand,
     waves: waves
   };
 }
@@ -141,299 +151,214 @@ function gen(o) {
       vines: o.vines || 0,
       iceEvery: o.iceEvery || 0,
       collapseEvery: o.collapseEvery || 0,
-      sporeEvery: o.sporeEvery || 0
+      sporeEvery: o.sporeEvery || 0,
+      meteorEvery: o.meteorEvery || 0,
+      glitchEvery: o.glitchEvery || 0,
+      harvestEvery: o.harvestEvery || 0,
+      darkBand: o.darkBand
     }));
   }
   return out;
 }
 
-/* ---------------------------------------------------------------------- */
+/* ----------------------------------------------------------------------
+   Девять планет, по три в акте, по 5 / 10 / 15 уровней.
+   У каждой свой набор защитников (roster), свой бестиарий и своя механика.
+   Ядро набора — маяк и барьер, они есть везде: без экономики и стены
+   ни одна планета не играется.
+   ---------------------------------------------------------------------- */
+
+/* Ядро набора есть на каждой планете: без экономики, стены и базового
+   стрелка планета просто не открывается — пять колонок нечем закрыть. */
+var CORE_UNITS = ['beacon', 'barrier', 'shooter'];
 
 var PLANETS = [
   {
-    id: 1, name: 'Ферма', sub: 'Где всё началось', levels: 5, mechanic: null,
-    color: '#4ADE80', fill: '#16241C', feature: 'fields', act: 1,
-    desc: 'Тихое поле и обычные твари. Учимся держать строй.'
+    id: 1, act: 1, name: 'Ферма', sub: 'Где всё началось', levels: 5,
+    color: '#4ADE80', fill: '#16241C', feature: 'fields',
+    mechanic: 'Урожай: поле само роняет зерно',
+    roster: ['mine', 'spikes', 'repair'],
+    drip: [['beacon', 'shooter'], ['barrier'], ['mine'], ['spikes'], ['repair']],
+    desc: 'Тихое поле. Иногда само роняет зерно — лишняя искра не помешает.'
   },
   {
-    id: 2, name: 'Пепельные пустоши', sub: 'Выжженная земля', levels: 10, mechanic: 'craters',
-    color: '#F97316', fill: '#2A1A12', feature: 'craters', act: 2 - 1,
-    desc: 'Часть клеток выжжена — строить на них нельзя. Из пепла лезут фантомы.'
+    id: 2, act: 1, name: 'Пепельные пустоши', sub: 'Выжженная земля', levels: 10,
+    color: '#F97316', fill: '#2A1A12', feature: 'craters',
+    mechanic: 'Кратеры: часть клеток выжжена навсегда',
+    roster: ['shotgun', 'torch', 'umbrella'],
+    desc: 'Часть клеток выжжена. Зонт сбивает плевки, горн разгоняет снаряды.'
   },
   {
-    id: 3, name: 'Ледяная станция', sub: 'Мороз и тьма', levels: 15, mechanic: 'ice',
+    id: 3, act: 1, name: 'Ледяная станция', sub: 'Мороз и тьма', levels: 15,
     color: '#60A5FA', fill: '#152232', feature: 'ice', ring: true,
-    act: 1,
-    desc: 'Защитники покрываются льдом и замолкают. Коснись, чтобы отогреть. Здесь открывается третья ступень улучшений.'
+    mechanic: 'Обледенение: защитник молчит, пока его не отогреют',
+    roster: ['freezer', 'repeater', 'magnet', 'net'],
+    desc: 'Защитники леденеют — коснись, чтобы отогреть. Здесь открывается третья ступень улучшений.'
   },
   {
-    id: 4, name: 'Джунгли', sub: 'Второй круг', levels: 8, mechanic: 'vines',
-    color: '#22C55E', fill: '#132A1B', feature: 'fields', act: 2,
-    desc: 'Половина поля заросла. Заросли снимаются тапом бесплатно, но время стоит дорого. Здесь появляется Ремонтник.'
+    id: 4, act: 2, name: 'Джунгли', sub: 'Второй круг', levels: 5,
+    color: '#22C55E', fill: '#132A1B', feature: 'fields',
+    mechanic: 'Заросли: клетку надо расчистить тапом',
+    roster: ['chomper', 'spikes', 'fan', 'harpoon'],
+    desc: 'Поле заросло. Капкан глотает врага целиком, гарпун тащит его назад.'
   },
   {
-    id: 5, name: 'Рудник', sub: 'Под землёй', levels: 10, mechanic: 'collapse',
-    color: '#D97706', fill: '#2A1E0E', feature: 'craters', act: 2,
-    desc: 'Своды обваливаются прямо в бою и забирают свободные клетки. Здесь появляется Мортира.'
+    id: 5, act: 2, name: 'Рудник', sub: 'Под землёй', levels: 10,
+    color: '#D97706', fill: '#2A1E0E', feature: 'craters',
+    mechanic: 'Обвалы: свободные клетки пропадают прямо в бою',
+    roster: ['mortar', 'pendulum', 'shotgun', 'repair'],
+    desc: 'Своды обваливаются. Мортира кроет площадь, маятник косит три колонки.'
   },
   {
-    id: 6, name: 'Улей', sub: 'Живая стена', levels: 12, mechanic: 'spores',
-    color: '#84CC16', fill: '#1E2A10', feature: 'fields', act: 2,
-    desc: 'Споры оседают на защитниках и вдвое сбивают им темп. Здесь появляется Лазер.'
+    id: 6, act: 2, name: 'Улей', sub: 'Живая стена', levels: 15,
+    color: '#84CC16', fill: '#1E2A10', feature: 'fields',
+    mechanic: 'Споры: темп стрельбы падает вдвое',
+    roster: ['laser', 'tesla', 'net', 'fan'],
+    desc: 'Споры душат темп. Лазер прошивает колонку, молния бьёт цепью.'
   },
   {
-    id: 7, name: 'Разлом', sub: 'Третий круг', levels: 10, mechanic: 'craters+ice',
-    color: '#E879F9', fill: '#281630', feature: 'craters', act: 3,
-    desc: 'Выжженные клетки и лёд разом. Отсюда начинается тяжёлая часть.'
+    id: 7, act: 3, name: 'Разлом', sub: 'Третий круг', levels: 5,
+    color: '#E879F9', fill: '#281630', feature: 'craters',
+    mechanic: 'Тьма: по полю ходит полоса, в которой врага не видно',
+    roster: ['freezer', 'chomper', 'torch', 'umbrella'],
+    desc: 'По полю ходит полоса тьмы. В ней враг виден только по глазам.'
   },
   {
-    id: 8, name: 'Печь', sub: 'Жар и пепел', levels: 12, mechanic: 'collapse+spores',
-    color: '#EF4444', fill: '#2A1414', feature: 'craters', act: 3,
-    desc: 'Обвалы и споры одновременно. Поле сжимается быстрее, чем ты строишь.'
+    id: 8, act: 3, name: 'Печь', sub: 'Жар и пепел', levels: 10,
+    color: '#EF4444', fill: '#2A1414', feature: 'craters',
+    mechanic: 'Метеоры: клетка светится, потом по ней бьёт',
+    roster: ['mortar', 'pendulum', 'tesla', 'magnet'],
+    desc: 'Метеоры бьют по клеткам. Кольцо загорается заранее — успей убрать юнита.'
   },
   {
-    id: 9, name: 'Бездна', sub: 'Конец пути', levels: 14, mechanic: 'all',
-    color: '#818CF8', fill: '#1A1B33', feature: 'ice', ring: true, act: 3,
-    desc: 'Всё сразу: кратеры, лёд и споры. Последние четырнадцать ночей.'
+    id: 9, act: 3, name: 'Бездна', sub: 'Конец пути', levels: 15,
+    color: '#818CF8', fill: '#1A1B33', feature: 'ice', ring: true,
+    mechanic: 'Аномалия: колонка защитников замолкает',
+    roster: ['laser', 'repeater', 'harpoon', 'mine'],
+    desc: 'Аномалия глушит целые колонки. Последние пятнадцать ночей.'
   }
 ];
 
-var LEVELS = [
-  /* ===================== ПЛАНЕТА 1 — ФЕРМА ===================== */
-  mk({ id: 1, planet: 1, name: 'Первая ночь', startSparks: 100,
-       unlock: ['beacon', 'shooter'], hint: 'Ставь маяки — без искр не будет стрелков',
-       pool: [['walker', 1, 1]], base: 3, growth: 0.7, gap: 3.0 }),
-
-  mk({ id: 2, planet: 1, name: 'Тихий двор', startSparks: 125,
-       unlock: ['barrier'], hint: 'Барьер дёшев и держит удар — прикрой им стрелков',
-       pool: [['walker', 1, 1]], base: 4, growth: 0.9, gap: 2.6 }),
-
-  mk({ id: 3, planet: 1, name: 'Быстрые тени', startSparks: 125,
-       unlock: ['mine'], hint: 'Бегуны проскакивают поле вдвое быстрее',
-       pool: [['walker', 1, 3], ['runner', 2, 2]], base: 4, growth: 1.0, gap: 2.5 }),
-
-  mk({ id: 4, planet: 1, name: 'Через ряд', startSparks: 150, hpScale: 1.028,
-       unlock: ['freezer'], hint: 'Прыгун один раз перескочит через ряд защитников',
-       pool: [['walker', 1, 3], ['runner', 2, 2], ['jumper', 3, 2]],
-       base: 5, growth: 1.0, gap: 2.4 }),
-
-  mk({ id: 5, planet: 1, name: 'Гость с холма', startSparks: 175, hpScale: 1.055,
-       hint: 'На финальной волне придёт колосс — копи искры заранее',
-       pool: [['walker', 1, 3], ['runner', 1, 2], ['jumper', 2, 2]],
-       base: 5, growth: 1.1, gap: 2.3, boss: { wave: 10, count: 1, hpMul: 1 } }),
-
-  /* ============== ПЛАНЕТА 2 — ПЕПЕЛЬНЫЕ ПУСТОШИ ============== */
-  mk({ id: 6, planet: 2, name: 'Пепел', startSparks: 175, hpScale: 1.055, craters: 3,
-       unlock: ['shotgun'], hint: 'Выжженные клетки заняты навсегда. Пепельник взрывается при смерти',
-       pool: [['walker', 1, 3], ['runner', 3, 2], ['burster', 1, 2]],
-       base: 5, growth: 1.0, gap: 2.4 }),
-
-  mk({ id: 7, planet: 2, name: 'Кратеры', startSparks: 175, hpScale: 1.088, craters: 4,
-       hint: 'Плевун бьёт с двух клеток и не подходит вплотную',
-       pool: [['walker', 1, 3], ['runner', 4, 2], ['burster', 1, 2], ['spitter', 2, 2]],
-       base: 5, growth: 1.1, gap: 2.3 }),
-
-  mk({ id: 8, planet: 2, name: 'Броня и пыль', startSparks: 200, hpScale: 1.121, craters: 4,
-       unlock: ['repeater'], hint: 'Броня глотает первые 200 урона — дуплет снимет её вдвое быстрее',
-       pool: [['walker', 1, 3], ['burster', 2, 2], ['spitter', 3, 2], ['armored', 1, 2]],
-       base: 5, growth: 1.1, gap: 2.2 }),
-
-  mk({ id: 9, planet: 2, name: 'Призраки пустошей', startSparks: 200, hpScale: 1.154, craters: 4,
-       hint: 'Фантом уходит в фазу — в этот момент снаряды проходят насквозь',
-       pool: [['walker', 1, 2], ['burster', 3, 2], ['armored', 2, 2], ['phantom', 1, 2]],
-       base: 6, growth: 1.1, gap: 2.2 }),
-
-  mk({ id: 10, planet: 2, name: 'Вожак пепла', startSparks: 225, hpScale: 1.176, craters: 5,
-       hint: 'Колосс на финальной волне и кратеры по всему полю',
-       pool: [['walker', 1, 2], ['burster', 1, 2], ['armored', 3, 2], ['phantom', 2, 2]],
-       base: 6, growth: 1.2, gap: 2.1, boss: { wave: 10, count: 1, hpMul: 1.2 } }),
-
-  mk({ id: 11, planet: 2, name: 'Разлом', startSparks: 225, hpScale: 1.198, craters: 5, cols: 2,
-       unlock: ['magnet'], hint: 'Магнит срывает броню целиком — ставь его к броненосцам',
-       pool: [['walker', 1, 2], ['spitter', 2, 2], ['armored', 1, 3], ['phantom', 3, 2]],
-       base: 6, growth: 1.2, gap: 2.1 }),
-
-  mk({ id: 12, planet: 2, name: 'Чёрный ветер', startSparks: 225, hpScale: 1.231, craters: 5, cols: 2,
-       hint: 'Две колонки давят одновременно',
-       pool: [['walker', 1, 2], ['runner', 1, 2], ['burster', 2, 2], ['armored', 4, 2], ['phantom', 2, 2]],
-       base: 6, growth: 1.2, gap: 2.0 }),
-
-  mk({ id: 13, planet: 2, name: 'Горн и наковальня', startSparks: 250, hpScale: 1.253, craters: 5, cols: 2,
-       unlock: ['torch'], hint: 'Снаряд, прошедший сквозь горн, бьёт в полтора раза сильнее',
-       pool: [['walker', 1, 2], ['spitter', 3, 2], ['jumper', 2, 2], ['armored', 1, 2], ['phantom', 2, 2]],
-       base: 6, growth: 1.3, gap: 2.0 }),
-
-  mk({ id: 14, planet: 2, name: 'Стеклянное поле', startSparks: 250, hpScale: 1.275, craters: 6, cols: 3,
-       hint: 'Кратеров больше, чем свободных рядов',
-       pool: [['walker', 1, 2], ['runner', 3, 2], ['burster', 1, 2], ['armored', 1, 2], ['phantom', 2, 2]],
-       base: 7, growth: 1.3, gap: 1.9 }),
-
-  mk({ id: 15, planet: 2, name: 'Две тени', startSparks: 275, hpScale: 1.297, craters: 6, cols: 3,
-       hint: 'Финал планеты: два колосса разом',
-       pool: [['walker', 1, 2], ['burster', 2, 2], ['spitter', 3, 2], ['armored', 1, 2], ['phantom', 1, 2]],
-       base: 7, growth: 1.3, gap: 1.9, boss: { wave: 10, count: 2, hpMul: 1.3 } }),
-
-  /* ============== ПЛАНЕТА 3 — ЛЕДЯНАЯ СТАНЦИЯ ============== */
-  mk({ id: 16, planet: 3, name: 'Шлюз', startSparks: 300, hpScale: 1.242, iceEvery: 14,
-       unlock: ['fan'], hint: 'Лёд сковывает защитника — коснись его, чтобы отогреть',
-       pool: [['walker', 1, 3], ['runner', 1, 2], ['armored', 2, 2]],
-       base: 6, growth: 1.2, gap: 2.2 }),
-
-  mk({ id: 17, planet: 3, name: 'Иней', startSparks: 300, hpScale: 1.266, iceEvery: 13,
-       hint: 'Веер бьёт в три колонки — он окупается в тесноте',
-       pool: [['walker', 1, 2], ['runner', 1, 2], ['jumper', 2, 2], ['armored', 3, 2]],
-       base: 6, growth: 1.25, gap: 2.1 }),
-
-  mk({ id: 18, planet: 3, name: 'Рой', startSparks: 325, hpScale: 1.29, iceEvery: 12,
-       hint: 'Рой при смерти распадается надвое — считай это заранее',
-       pool: [['walker', 1, 2], ['runner', 2, 2], ['armored', 3, 2], ['swarm', 1, 3]],
-       base: 6, growth: 1.25, gap: 2.1 }),
-
-  mk({ id: 19, planet: 3, name: 'Лекари', startSparks: 325, hpScale: 1.314, iceEvery: 12,
-       hint: 'Лекарь чинит соседей — выбивай его первым',
-       pool: [['walker', 1, 2], ['armored', 2, 2], ['swarm', 2, 2], ['healer', 1, 2]],
-       base: 6, growth: 1.3, gap: 2.0 }),
-
-  mk({ id: 20, planet: 3, name: 'Страж станции', startSparks: 350, hpScale: 1.339, iceEvery: 11,
-       hint: 'Колосс во льдах',
-       pool: [['walker', 1, 2], ['armored', 1, 2], ['swarm', 2, 2], ['healer', 1, 2]],
-       base: 7, growth: 1.3, gap: 2.0, boss: { wave: 10, count: 1, hpMul: 1.4 } }),
-
-  mk({ id: 21, planet: 3, name: 'Мёртвый коридор', startSparks: 350, hpScale: 1.378, iceEvery: 11, cols: 2,
-       hint: 'Лёд ложится всё чаще',
-       pool: [['walker', 1, 2], ['armored', 2, 2], ['phantom', 1, 2], ['swarm', 3, 2], ['healer', 2, 2]],
-       base: 7, growth: 1.3, gap: 1.9 }),
-
-  mk({ id: 22, planet: 3, name: 'Криокамера', startSparks: 350, hpScale: 1.412, iceEvery: 10, cols: 2,
-       hint: 'Держи запас искр: отогревать строй придётся часто',
-       pool: [['walker', 1, 2], ['runner', 1, 2], ['burster', 2, 2], ['armored', 3, 2], ['healer', 1, 2]],
-       base: 7, growth: 1.35, gap: 1.9 }),
-
-  mk({ id: 23, planet: 3, name: 'Обрыв связи', startSparks: 375, hpScale: 1.445, iceEvery: 10, cols: 2,
-       hint: 'Фантомы и лекари в одной волне',
-       pool: [['walker', 1, 2], ['jumper', 3, 2], ['phantom', 1, 2], ['swarm', 2, 2], ['healer', 1, 2]],
-       base: 7, growth: 1.35, gap: 1.8 }),
-
-  mk({ id: 24, planet: 3, name: 'Белая мгла', startSparks: 375, hpScale: 1.484, iceEvery: 9, cols: 3,
-       hint: 'Три фронта во льдах',
-       pool: [['walker', 1, 2], ['armored', 1, 2], ['phantom', 3, 2], ['swarm', 1, 2], ['healer', 2, 2]],
-       base: 8, growth: 1.35, gap: 1.8 }),
-
-  mk({ id: 25, planet: 3, name: 'Второй страж', startSparks: 400, hpScale: 1.508, iceEvery: 9, cols: 3,
-       hint: 'Колосс приходит не один',
-       pool: [['walker', 1, 2], ['burster', 2, 2], ['armored', 1, 2], ['swarm', 2, 2], ['healer', 1, 2]],
-       base: 8, growth: 1.4, gap: 1.7, boss: { wave: 10, count: 1, hpMul: 1.6 } }),
-
-  mk({ id: 26, planet: 3, name: 'Глубина', startSparks: 400, hpScale: 1.556, iceEvery: 8, cols: 3,
-       hint: 'Отсюда каждая ошибка стоит жизни',
-       pool: [['walker', 1, 2], ['armored', 1, 2], ['phantom', 1, 2], ['swarm', 2, 2], ['healer', 1, 2]],
-       base: 8, growth: 1.4, gap: 1.7 }),
-
-  mk({ id: 27, planet: 3, name: 'Резонанс', startSparks: 425, hpScale: 1.605, iceEvery: 8, cols: 3,
-       hint: 'Рой, лекари и броня одновременно',
-       pool: [['walker', 1, 2], ['runner', 2, 2], ['armored', 1, 2], ['phantom', 2, 2], ['swarm', 1, 3], ['healer', 1, 2]],
-       base: 8, growth: 1.45, gap: 1.6 }),
-
-  mk({ id: 28, planet: 3, name: 'Тёмный лёд', startSparks: 425, hpScale: 1.654, iceEvery: 7, cols: 3,
-       hint: 'Лёд ложится раз в семь секунд',
-       pool: [['walker', 1, 2], ['jumper', 2, 2], ['armored', 1, 2], ['phantom', 1, 2], ['swarm', 2, 2], ['healer', 1, 2]],
-       base: 8, growth: 1.45, gap: 1.6 }),
-
-  mk({ id: 29, planet: 3, name: 'Последний отсек', startSparks: 450, hpScale: 1.702, iceEvery: 7, cols: 3,
-       hint: 'Перед ядром — всё, что станция ещё может выставить',
-       pool: [['walker', 1, 2], ['runner', 1, 2], ['burster', 2, 2], ['armored', 1, 2], ['phantom', 1, 2], ['swarm', 1, 2], ['healer', 1, 2]],
-       base: 9, growth: 1.5, gap: 1.5, boss: { wave: 9, count: 1, hpMul: 1.5 } }),
-
-  mk({ id: 30, planet: 3, name: 'Ядро', startSparks: 450, hpScale: 1.751, iceEvery: 7, cols: 3,
-       hint: 'Финал. Два усиленных колосса и всё остальное следом',
-       pool: [['walker', 1, 2], ['runner', 1, 2], ['burster', 1, 2], ['jumper', 1, 2], ['armored', 1, 2], ['phantom', 1, 2], ['swarm', 1, 2], ['healer', 1, 2]],
-       base: 9, growth: 1.5, gap: 1.5, boss: { wave: 10, count: 2, hpMul: 1.7 } })
-];
-
-/* ================= АКТ II: планеты 4-6, уровни 31-60 ================= */
-LEVELS = LEVELS.concat(
+var LEVELS = [].concat(
+  /* ===================== АКТ I ===================== */
   gen({
-    planet: 4, from: 31, count: 8, vines: 4,
-    names: ['Кромка', 'Лианы', 'Топь', 'Гнездо', 'Полог', 'Корни', 'Сердце чащи', 'Матка роя'],
-    hint: 'Заросли снимаются тапом — расчищай заранее, не под волной',
-    hints: { 1: 'Ремонтник чинит соседей — ставь его в середину строя',
-             3: 'Носитель высаживает бегунов прямо на ходу',
-             5: 'Ревун разгоняет всех вокруг себя — выбивай его первым' },
-    unlocks: { 1: ['repair'] },
-    pool: [['walker', 1, 2], ['runner', 1, 2], ['jumper', 2, 2],
-           ['burster', 2, 2], ['carrier', 3, 2], ['howler', 5, 2]],
-    base: [6, 8], growth: 1.3, gap: 2.1,
-    sparks: [400, 450], hp: [1.55, 1.8],
-    bosses: { 8: { wave: 10, count: 1, hpMul: 1.3 } }
+    planet: 1, from: 1, count: 5, harvestEvery: 12,
+    names: ['Первая ночь', 'Тихий двор', 'Ночные гости', 'Через ряд', 'Гость с холма'],
+    hint: 'Ставь маяки — без искр не будет стрелков',
+    hints: { 3: 'Шипы лежат на земле и режут всех, кто наступит',
+             4: 'Прыгун один раз перескочит через ряд защитников',
+             5: 'На финальной волне придёт колосс' },
+    unlocks: { 1: ['beacon', 'shooter'], 2: ['barrier'], 3: ['mine'], 4: ['spikes'], 5: ['repair'] },
+    pool: [['walker', 1, 3], ['runner', 2, 2], ['jumper', 3, 2]],
+    base: [4, 6], growth: 1.0, gap: 2.8,
+    sparks: [100, 175], hp: [1.0, 1.1],
+    bosses: { 5: { wave: 10, count: 1, hpMul: 1 } }
   }),
   gen({
-    planet: 5, from: 39, count: 10, collapseEvery: 18,
+    planet: 2, from: 6, count: 10, craters: 4,
+    names: ['Пепел', 'Кратеры', 'Сухой ветер', 'Плевки', 'Горн',
+            'Призраки', 'Стеклянное поле', 'Пыль', 'Разлом породы', 'Вожак пепла'],
+    hint: 'Выжженные клетки заняты навсегда',
+    hints: { 2: 'Пепельник взрывается при смерти и обжигает защитника под собой',
+             4: 'Зонт сбивает плевки над собой и соседями',
+             6: 'Фантом уходит в фазу — в этот момент снаряды проходят насквозь' },
+    pool: [['walker', 1, 3], ['burster', 1, 2], ['spitter', 2, 2], ['phantom', 4, 2]],
+    base: [5, 7], growth: 1.15, gap: 2.4,
+    sparks: [175, 250], hp: [1.1, 1.35],
+    bosses: { 10: { wave: 10, count: 1, hpMul: 1.2 } }
+  }),
+  gen({
+    planet: 3, from: 16, count: 15, iceEvery: 12,
+    names: ['Шлюз', 'Иней', 'Первый ярус', 'Броня', 'Рой', 'Лекари', 'Мёртвый коридор',
+            'Криокамера', 'Обрыв связи', 'Белая мгла', 'Глубина', 'Резонанс',
+            'Тёмный лёд', 'Последний отсек', 'Страж станции'],
+    hint: 'Лёд сковывает защитника — коснись, чтобы отогреть',
+    hints: { 4: 'Магнит срывает броню целиком',
+             5: 'Рой при смерти распадается надвое',
+             6: 'Лекарь чинит соседей — выбивай его первым',
+             8: 'Сеть пригвождает врага к месту' },
+    pool: [['walker', 1, 3], ['runner', 1, 2], ['armored', 3, 2], ['swarm', 4, 2], ['healer', 5, 2]],
+    base: [5, 8], growth: 1.2, gap: 2.2,
+    sparks: [250, 350], hp: [1.35, 1.7],
+    bosses: { 15: { wave: 10, count: 1, hpMul: 1.3 } }
+  }),
+
+  /* ===================== АКТ II ===================== */
+  gen({
+    planet: 4, from: 31, count: 5, vines: 4,
+    names: ['Кромка', 'Лианы', 'Топь', 'Полог', 'Сердце чащи'],
+    hint: 'Заросли снимаются тапом — расчищай заранее, не под волной',
+    hints: { 1: 'Капкан глотает врага целиком, потом долго жуёт',
+             3: 'Носитель высаживает бегунов прямо на ходу',
+             4: 'Ревун разгоняет всех вокруг себя' },
+    pool: [['walker', 1, 2], ['runner', 1, 2], ['jumper', 2, 2], ['carrier', 3, 2], ['howler', 3, 2]],
+    base: [4.5, 6.5], growth: 1.15, gap: 2.2,
+    sparks: [350, 400], hp: [1.42, 1.55],
+    bosses: { 5: { wave: 10, count: 1, hpMul: 1.3 } }
+  }),
+  gen({
+    planet: 5, from: 36, count: 10, collapseEvery: 16,
     names: ['Ствол шахты', 'Первый горизонт', 'Обвал', 'Штрек', 'Рудная жила',
             'Глубокий забой', 'Провал', 'Затопленный ярус', 'Клеть', 'Хозяин рудника'],
     hint: 'Своды обваливаются: свободных клеток с каждой волной меньше',
-    hints: { 1: 'Мортира бьёт по площади — по плотной волне это выгоднее одиночного урона',
+    hints: { 1: 'Мортира бьёт по площади, маятник косит три колонки вплотную',
              4: 'Щитоносец вдвое режет урон по соседям' },
-    unlocks: { 1: ['mortar'] },
-    pool: [['walker', 1, 2], ['runner', 1, 2], ['burster', 2, 2],
-           ['armored', 3, 2], ['howler', 3, 2], ['shielder', 4, 2]],
-    base: [5, 7], growth: 1.3, gap: 2.0,
-    sparks: [450, 500], hp: [1.75, 2.0],
-    bosses: { 10: { wave: 10, count: 1, hpMul: 1.4 } }
+    pool: [['walker', 1, 2], ['burster', 1, 2], ['spitter', 2, 2], ['armored', 3, 2], ['shielder', 4, 2]],
+    base: [4.5, 7], growth: 1.2, gap: 2.1,
+    sparks: [400, 475], hp: [1.55, 1.75],
+    bosses: { 10: { wave: 10, count: 1, hpMul: 1.35 } }
   }),
   gen({
-    planet: 6, from: 49, count: 12, sporeEvery: 10,
-    names: ['Порог улья', 'Споры', 'Соты', 'Кладка', 'Рабочий ярус', 'Дым',
-            'Личинки', 'Трутни', 'Галерея', 'Кормовая', 'Королевская камера', 'Рой королевы'],
+    planet: 6, from: 46, count: 15, sporeEvery: 11,
+    names: ['Порог улья', 'Споры', 'Соты', 'Кладка', 'Рабочий ярус', 'Дым', 'Личинки',
+            'Трутни', 'Галерея', 'Кормовая', 'Тесная камера', 'Гул', 'Смена роя',
+            'Королевская камера', 'Рой королевы'],
     hint: 'Споры сбивают темп вдвое и выветриваются сами',
-    hints: { 1: 'Лазер прошивает всю колонку — чем плотнее строй врага, тем он выгоднее' },
-    unlocks: { 1: ['laser'] },
-    pool: [['walker', 1, 2], ['runner', 1, 2], ['carrier', 2, 2], ['swarm', 3, 2],
-           ['phantom', 3, 2], ['howler', 4, 2], ['shielder', 5, 2]],
-    base: [6, 8], growth: 1.3, gap: 1.9,
-    sparks: [500, 575], hp: [1.95, 2.2],
-    bosses: { 6: { wave: 10, count: 1, hpMul: 1.2 },
-              12: { wave: 10, type: 'titan', count: 1, hpMul: 1.2 } }
-  })
-);
+    hints: { 1: 'Лазер прошивает колонку насквозь, молния бьёт цепью по троим',
+             5: 'Рой распадается надвое — считай это заранее' },
+    pool: [['walker', 1, 2], ['runner', 1, 2], ['carrier', 2, 2], ['swarm', 4, 2],
+           ['phantom', 4, 2], ['healer', 5, 2]],
+    base: [4.5, 7], growth: 1.2, gap: 2.0,
+    sparks: [475, 575], hp: [1.75, 2.0],
+    bosses: { 8: { wave: 10, count: 1, hpMul: 1.2 },
+              15: { wave: 10, type: 'titan', count: 1, hpMul: 1.2 } }
+  }),
 
-/* ================= АКТ III: планеты 7-9, уровни 61-96 ================= */
-LEVELS = LEVELS.concat(
+  /* ===================== АКТ III ===================== */
   gen({
-    planet: 7, from: 61, count: 10, craters: 4, iceEvery: 11,
-    names: ['Трещина', 'Первый мост', 'Осколки', 'Провал', 'Эхо',
-            'Ледяной разлом', 'Стена', 'Тень разлома', 'Перевал', 'Страж разлома'],
-    hint: 'Кратеры и лёд одновременно',
-    hints: { 3: 'Пожиратель съедает первого защитника целиком, не разгрызая' },
+    planet: 7, from: 61, count: 5, darkBand: true,
+    names: ['Трещина', 'Первый мост', 'Осколки', 'Перевал', 'Страж разлома'],
+    hint: 'В полосе тьмы враг виден только по глазам',
+    hints: { 2: 'Пожиратель съедает защитника целиком — не берёт только барьер' },
     pool: [['walker', 1, 2], ['runner', 1, 2], ['armored', 2, 2], ['phantom', 3, 2],
-           ['devourer', 4, 2], ['shielder', 4, 2], ['healer', 5, 2]],
-    base: [6, 8], growth: 1.15, gap: 1.9, cols: 2,
-    sparks: [600, 675], hp: [1.95, 2.15],
-    bosses: { 10: { wave: 10, type: 'titan', count: 1, hpMul: 1.4 } }
+           ['devourer', 4, 2], ['shielder', 4, 2]],
+    base: [4.5, 6.5], growth: 1.15, gap: 2.0,
+    sparks: [575, 650], hp: [1.9, 2.05],
+    bosses: { 5: { wave: 10, type: 'titan', count: 1, hpMul: 1.3 } }
   }),
   gen({
-    planet: 8, from: 71, count: 12, collapseEvery: 16, sporeEvery: 11,
-    names: ['Заслонка', 'Жар', 'Литейный', 'Шлак', 'Горн печи', 'Выплавка',
-            'Раскал', 'Форма', 'Слиток', 'Топка', 'Дымоход', 'Мастер печи'],
-    hint: 'Обвалы и споры вместе: поле сжимается, а строй молчит',
-    pool: [['walker', 1, 2], ['burster', 1, 2], ['armored', 2, 2], ['carrier', 3, 2],
-           ['howler', 3, 2], ['devourer', 4, 2], ['swarm', 5, 2]],
-    base: [6, 8], growth: 1.15, gap: 1.8,
-    sparks: [675, 775], hp: [2.15, 2.35],
-    bosses: { 6: { wave: 10, type: 'titan', count: 1, hpMul: 1.3 },
-              12: { wave: 10, type: 'titan', count: 2, hpMul: 1.3 } }
+    planet: 8, from: 66, count: 10, meteorEvery: 13,
+    names: ['Заслонка', 'Жар', 'Литейный', 'Шлак', 'Горн печи',
+            'Выплавка', 'Раскал', 'Слиток', 'Топка', 'Мастер печи'],
+    hint: 'Кольцо загорается заранее — успей убрать юнита с клетки',
+    pool: [['walker', 1, 2], ['burster', 1, 2], ['armored', 2, 2], ['howler', 3, 2],
+           ['carrier', 4, 2], ['devourer', 4, 2]],
+    base: [4.5, 7], growth: 1.2, gap: 1.9,
+    sparks: [650, 750], hp: [2.05, 2.25],
+    bosses: { 10: { wave: 10, type: 'titan', count: 2, hpMul: 1.3 } }
   }),
   gen({
-    planet: 9, from: 83, count: 14, craters: 5, iceEvery: 11, sporeEvery: 11,
-    names: ['Порог', 'Спуск', 'Пустота', 'Тишина', 'Шёпот', 'Провал', 'Изнанка',
-            'Грань', 'Тьма', 'Дно', 'Отражение', 'Последний свет', 'Сердце бездны', 'Конец'],
-    hint: 'Всё сразу: кратеры, лёд и споры',
-    hints: { 14: 'Последняя ночь. Два титана и колосс следом' },
-    pool: [['walker', 1, 2], ['runner', 1, 2], ['armored', 2, 2], ['phantom', 2, 2],
-           ['devourer', 3, 2], ['shielder', 4, 2], ['swarm', 4, 2], ['healer', 5, 2]],
-    base: [6, 8], growth: 1.2, gap: 1.7,
-    sparks: [775, 900], hp: [2.2, 2.42],
-    bosses: { 7: { wave: 10, type: 'titan', count: 1, hpMul: 1.4 },
-              14: { wave: 10, type: 'titan', count: 2, hpMul: 1.5 } }
+    planet: 9, from: 76, count: 15, glitchEvery: 12,
+    names: ['Порог', 'Спуск', 'Пустота', 'Тишина', 'Шёпот', 'Провал', 'Изнанка', 'Грань',
+            'Тьма', 'Дно', 'Отражение', 'Эхо бездны', 'Последний свет', 'Сердце бездны', 'Конец'],
+    hint: 'Аномалия глушит целую колонку — держи запасной эшелон',
+    hints: { 15: 'Последняя ночь. Два титана и всё остальное следом' },
+    pool: [['walker', 1, 2], ['runner', 1, 2], ['armored', 2, 2], ['phantom', 3, 2],
+           ['swarm', 4, 2], ['devourer', 4, 2], ['shielder', 5, 2], ['healer', 6, 2]],
+    base: [6, 8.5], growth: 1.35, gap: 1.7,
+    sparks: [750, 900], hp: [2.45, 3.0],
+    bosses: { 8: { wave: 10, type: 'titan', count: 1, hpMul: 1.3 },
+              15: { wave: 10, type: 'titan', count: 2, hpMul: 1.4 } }
   })
 );
 
@@ -451,34 +376,58 @@ var Waves = {
     return PLANETS[0];
   },
 
-  /* Уровни конкретной планеты */
   ofPlanet: function (planetId) {
     var out = [];
     for (var i = 0; i < LEVELS.length; i++) if (LEVELS[i].planet === planetId) out.push(LEVELS[i]);
     return out;
   },
 
-  /* Первый уровень планеты — им открывается вся планета */
+  ofAct: function (act) {
+    var out = [];
+    for (var i = 0; i < PLANETS.length; i++) if (PLANETS[i].act === act) out.push(PLANETS[i]);
+    return out;
+  },
+
   firstOfPlanet: function (planetId) {
     var list = Waves.ofPlanet(planetId);
     return list.length ? list[0].id : 1;
   },
 
-  /* Какие защитники доступны к началу уровня (накопительно) */
-  unlockedAt: function (levelId) {
-    var out = [];
-    for (var i = 0; i < LEVELS.length && LEVELS[i].id <= levelId; i++) {
-      for (var j = 0; j < LEVELS[i].unlock.length; j++) out.push(LEVELS[i].unlock[j]);
-    }
-    return out;
+  /* Какой по счёту уровень внутри своей планеты (с единицы) */
+  indexInPlanet: function (levelId) {
+    var list = Waves.ofPlanet(Waves.get(levelId).planet);
+    for (var i = 0; i < list.length; i++) if (list[i].id === levelId) return i + 1;
+    return 1;
   },
 
-  /* Бесконечный режим: волны генерируются процедурно и не кончаются */
+  /* Набор защитников уровня. Своя планета — свой набор, а не накопление
+     за всю кампанию: иначе к середине игры карточек было бы два десятка
+     и планеты перестали бы отличаться друг от друга. */
+  rosterFor: function (levelId) {
+    var lvl = Waves.get(levelId);
+    var planet = Waves.planet(lvl.planet);
+    if (planet.drip) {
+      // Первая планета выдаёт набор по одному за уровень
+      var out = [];
+      var upto = Waves.indexInPlanet(levelId);
+      for (var i = 0; i < upto && i < planet.drip.length; i++) {
+        out = out.concat(planet.drip[i]);
+      }
+      return out;
+    }
+    return CORE_UNITS.concat(planet.roster);
+  },
+
+  /* Совместимость: раньше набор копился по всей кампании */
+  unlockedAt: function (levelId) { return Waves.rosterFor(levelId); },
+
   endlessLevel: function () {
     return {
-      id: 0, planet: 3, name: 'Бесконечные волны', startSparks: 250,
+      id: 0, planet: 9, name: 'Бесконечные волны', startSparks: 400,
       unlock: [], hint: '', waves: [], endless: true,
-      hpScale: 1.0, craters: 0, iceEvery: 12
+      hpScale: 1, craters: 0, vines: 0, iceEvery: 14,
+      collapseEvery: 0, sporeEvery: 0, meteorEvery: 0, glitchEvery: 0,
+      harvestEvery: 0, darkBand: false
     };
   },
 
