@@ -244,7 +244,7 @@ var PLANETS = [
     desc: 'Аномалия глушит целые колонки. Последние пятнадцать ночей.'
   },
   {
-    id: 10, act: 4, name: 'Цитадель', sub: 'Осада', levels: 5,
+    id: 10, act: 4, name: 'Цитадель', sub: 'Осада', levels: 5, finale: true,
     color: '#F43F5E', fill: '#2A0E16', feature: 'craters', ring: true,
     mechanic: 'Осада: подкрепление приходит само, поверх волн',
     roster: ['altar', 'bastion', 'lancer', 'inquisitor', 'ward'],

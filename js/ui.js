@@ -212,32 +212,37 @@ var UI = {
       if (!planets.length) continue;
       var actLocked = this.planetLocked(planets[0]);
 
-      var act = document.createElement('div');
-      act.className = 'act' + (actLocked ? ' locked' : '');
+      // Финальная планета идёт без заголовка акта: крупная и по центру
+      var finale = planets.length === 1 && planets[0].finale;
 
-      var head = document.createElement('div');
-      head.className = 'act-head';
-      var got = 0, total = 0;
-      for (var q = 0; q < planets.length; q++) {
-        var lv = Waves.ofPlanet(planets[q].id);
-        total += lv.length * 3;
-        for (var z = 0; z < lv.length; z++) got += (d.stars[lv[z].id] || 0);
+      var act = document.createElement('div');
+      act.className = 'act' + (actLocked ? ' locked' : '') + (finale ? ' finale' : '');
+
+      if (!finale) {
+        var head = document.createElement('div');
+        head.className = 'act-head';
+        var got = 0, total = 0;
+        for (var q = 0; q < planets.length; q++) {
+          var lv = Waves.ofPlanet(planets[q].id);
+          total += lv.length * 3;
+          for (var z = 0; z < lv.length; z++) got += (d.stars[lv[z].id] || 0);
+        }
+        head.innerHTML = '<span class="act-num">Акт ' + a + '</span>' +
+          '<span class="act-sub">' + (actLocked ? 'Закрыт' : got + ' из ' + total + ' звёзд') + '</span>';
+        act.appendChild(head);
       }
-      head.innerHTML = '<span class="act-num">Акт ' + a + '</span>' +
-        '<span class="act-sub">' + (actLocked ? 'Закрыт' : got + ' из ' + total + ' звёзд') + '</span>';
-      act.appendChild(head);
 
       var row = document.createElement('div');
       row.className = 'act-row';
       for (var i = 0; i < planets.length; i++) {
-        row.appendChild(this.makePlanetCard(planets[i], d));
+        row.appendChild(this.makePlanetCard(planets[i], d, finale));
       }
       act.appendChild(row);
       box.appendChild(act);
     }
   },
 
-  makePlanetCard: function (planet, d) {
+  makePlanetCard: function (planet, d, big) {
     var self = this;
     var locked = this.planetLocked(planet);
     var levels = Waves.ofPlanet(planet.id);
@@ -246,9 +251,12 @@ var UI = {
     var current = !locked && d.maxLevel >= levels[0].id && d.maxLevel <= levels[levels.length - 1].id;
 
     var card = document.createElement('div');
-    card.className = 'planet-card' + (locked ? ' locked' : '') + (current ? ' current' : '');
+    card.className = 'planet-card' + (locked ? ' locked' : '') +
+      (current ? ' current' : '') + (big ? ' big' : '');
 
-    var size = Math.max(64, Math.min(96, Math.floor((window.innerWidth - 90) / 3)));
+    var size = big
+      ? Math.max(120, Math.min(170, Math.floor(window.innerWidth * 0.42)))
+      : Math.max(64, Math.min(96, Math.floor((window.innerWidth - 90) / 3)));
     var cv = document.createElement('canvas');
     var dpr = Math.min(window.devicePixelRatio || 1, 3);
     cv.width = Math.round(size * dpr);
@@ -258,7 +266,7 @@ var UI = {
     var ctx = cv.getContext('2d');
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    var entry = { planet: planet, ctx: ctx, size: size, spin: 0, locked: locked };
+    var entry = { planet: planet, ctx: ctx, size: size, spin: 0, locked: locked, finale: !!big };
     this.planetCards.push(entry);
 
     var name = document.createElement('div');
@@ -361,6 +369,22 @@ var UI = {
 
     ctx.clearRect(0, 0, size, size);
 
+    // Финальная планета дышит и роняет вокруг себя угли
+    if (entry.finale && !locked) {
+      var beat = 0.5 + 0.5 * Math.sin(this.planetAngle * 3.4);
+      ctx.save();
+      ctx.globalAlpha = 0.07 + 0.07 * beat;
+      ctx.fillStyle = col;
+      Draw.circle(ctx, cx, cy, r * (1.34 + 0.06 * beat));
+      ctx.fill();
+      ctx.globalAlpha = 0.16 + 0.12 * beat;
+      ctx.strokeStyle = col;
+      ctx.lineWidth = 1.5;
+      Draw.circle(ctx, cx, cy, r * (1.18 + 0.03 * beat));
+      ctx.stroke();
+      ctx.restore();
+    }
+
     if (p.ring) {
       ctx.save();
       ctx.globalAlpha = locked ? 0.15 : 0.35;
@@ -436,6 +460,24 @@ var UI = {
       ctx.ellipse(cx, cy, r * 1.42, r * 0.32, -0.35, 0, Math.PI);
       ctx.stroke();
       ctx.globalAlpha = 1;
+    }
+
+    // Угли по орбите — только у финальной планеты
+    if (entry.finale && !locked) {
+      ctx.save();
+      for (var m = 0; m < 5; m++) {
+        var oa = this.planetAngle * (1.1 + m * 0.13) + m * 1.257;
+        var orx = r * (1.22 + 0.06 * Math.sin(this.planetAngle * 2 + m));
+        var ory = orx * 0.34;
+        var ox = cx + Math.cos(oa) * orx;
+        var oy = cy + Math.sin(oa) * ory;
+        var near = 0.45 + 0.55 * (0.5 + 0.5 * Math.sin(oa));
+        ctx.globalAlpha = 0.25 + 0.55 * near;
+        ctx.fillStyle = m % 2 ? PAL.spark : col;
+        Draw.circle(ctx, ox, oy, (1.2 + 1.4 * near) * (size / 150));
+        ctx.fill();
+      }
+      ctx.restore();
     }
 
     if (locked) this.drawLock(ctx, cx, cy, size * 0.08);
