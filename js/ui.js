@@ -892,7 +892,45 @@ var UI = {
     cd.style.height = '0%';
 
     card.appendChild(cv); card.appendChild(name); card.appendChild(cost); card.appendChild(cd);
-    card.addEventListener('click', function () { Sound.resume(); Game.selectCard(typeId); });
+
+    /* Тап ставит юнита, зажатие показывает, что он умеет. Пояснение живёт
+       только пока держишь: иначе оно закрывало бы нижний ряд поля. */
+    var self = this;
+    var holdTimer = 0, held = false;
+    var startHold = function () {
+      held = false;
+      clearTimeout(holdTimer);
+      holdTimer = setTimeout(function () {
+        held = true;
+        self.showUnitInfo(typeId);
+      }, 350);
+    };
+    var endHold = function () {
+      clearTimeout(holdTimer);
+      if (held) self.showUnitInfo(null);
+    };
+
+    if (window.PointerEvent) {
+      card.addEventListener('pointerdown', startHold);
+      card.addEventListener('pointerup', endHold);
+      card.addEventListener('pointerleave', endHold);
+      card.addEventListener('pointercancel', endHold);
+    } else {
+      card.addEventListener('touchstart', startHold, { passive: true });
+      card.addEventListener('touchend', endHold);
+      card.addEventListener('touchcancel', endHold);
+      card.addEventListener('mousedown', startHold);
+      card.addEventListener('mouseup', endHold);
+      card.addEventListener('mouseleave', endHold);
+    }
+    // Долгое нажатие не должно вызывать системное меню
+    card.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+
+    card.addEventListener('click', function () {
+      if (held) { held = false; return; }   // это было зажатие, а не тап
+      Sound.resume();
+      Game.selectCard(typeId);
+    });
 
     this.cards[typeId] = { root: card, cd: cd, locked: null, cdPct: -1 };
     return card;
@@ -932,7 +970,6 @@ var UI = {
     for (var id in this.cards) {
       this.cards[id].root.classList.toggle('selected', id === typeId);
     }
-    this.showUnitInfo(typeId);
   },
 
   /* Что умеет юнит: показываем при тапе по карточке, чтобы не надо было
@@ -1027,25 +1064,26 @@ var UI = {
 
     var head = document.createElement('div');
     head.className = 'unit-menu-head';
-    head.innerHTML = '<span>' + unit.def.name + '</span>' +
-      '<span class="tier">' + unit.level + ' / ' + maxTier +
-      ' · ' + Units.healthPct(unit) + '%</span>';
+    var tier = document.createElement('span');
+    tier.className = 'tier';
+    head.innerHTML = '<span>' + unit.def.name + '</span>';
+    head.appendChild(tier);
     m.appendChild(head);
 
     var sell = document.createElement('button');
-    sell.innerHTML = '<span>Продать</span><span class="price">+' + Units.sellPrice(unit) + '</span>';
+    sell.innerHTML = '<span>Продать</span><span class="price"></span>';
     sell.title = 'Возврат падает вместе с прочностью';
     sell.addEventListener('click', function (e) { e.stopPropagation(); Game.sellUnit(unit); });
     m.appendChild(sell);
 
     var up = document.createElement('button');
+    var upRef = null, upCost = 0;
     if (Units.canUpgrade(unit, maxTier)) {
       var cost = Units.upgradeCost(unit);
       up.className = game.sparks >= cost ? '' : 'disabled';
       up.innerHTML = '<span>Улучшить</span><span class="price">' + cost + '</span>';
       up.addEventListener('click', function (e) { e.stopPropagation(); Game.upgradeUnit(unit); });
-      // Меню живёт, пока открыто: как только искр хватит, кнопка оживёт сама
-      this.menuRefs = { unit: unit, btn: up, cost: cost, afford: game.sparks >= cost };
+      upRef = up; upCost = cost;
     } else {
       up.className = 'disabled';
       up.innerHTML = unit.level >= 3
@@ -1053,6 +1091,17 @@ var UI = {
         : '<span>Дальше — на Станции</span><span class="price">—</span>';
     }
     m.appendChild(up);
+
+    /* Меню живёт, пока открыто: прочность падает под ударами, вместе с ней
+       едет цена продажи, а кнопка улучшения оживает, как только хватит искр.
+       Закрывать и открывать меню заново для этого не нужно. */
+    this.menuRefs = {
+      unit: unit, tier: tier, tierText: '',
+      price: sell.lastChild, priceText: '',
+      btn: upRef, cost: upCost, afford: null,
+      maxTier: maxTier
+    };
+    this.tickUnitMenu(game);
 
     m.classList.remove('hidden');
 
@@ -1070,14 +1119,25 @@ var UI = {
     m.style.top = top + 'px';
   },
 
-  /* Каждый кадр сверяем доступность улучшения с текущим запасом искр */
+  /* Каждый кадр подтягиваем живые числа в открытом меню */
   tickUnitMenu: function (game) {
     var r = this.menuRefs;
     if (!r || game.menuUnit !== r.unit) return;
-    var afford = game.sparks >= r.cost;
-    if (afford === r.afford) return;
-    r.afford = afford;
-    r.btn.classList.toggle('disabled', !afford);
+    var u = r.unit;
+
+    var tierText = u.level + ' / ' + r.maxTier + ' · ' + Units.healthPct(u) + '%';
+    if (tierText !== r.tierText) { r.tierText = tierText; r.tier.textContent = tierText; }
+
+    var priceText = '+' + Units.sellPrice(u);
+    if (priceText !== r.priceText) { r.priceText = priceText; r.price.textContent = priceText; }
+
+    if (r.btn) {
+      var afford = game.sparks >= r.cost;
+      if (afford !== r.afford) {
+        r.afford = afford;
+        r.btn.classList.toggle('disabled', !afford);
+      }
+    }
   },
 
   /* ---------------- Оверлеи ---------------- */
