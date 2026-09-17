@@ -96,6 +96,57 @@ var ENEMY_TYPES = {
     hp: 3000, armor: 800, speed: 0.10, damage: 90, atkRate: 0.6,
     width: 2, scale: 1.5, boss: true, spark: 400, sparkChance: 1
   },
+  nibbler: {
+    id: 'nibbler', name: 'Грызун',
+    role: 'Мелкий и очень быстрый. Берёт числом, не прочностью',
+    hp: 40, speed: 0.52, damage: 8, atkRate: 2.0,
+    scale: 0.7, eyeTight: true, spark: 12, sparkChance: 0.5
+  },
+  frostling: {
+    id: 'frostling', name: 'Ледяной',
+    role: 'Кусая защитника, сковывает его льдом',
+    hp: 150, speed: 0.20, damage: 14, atkRate: 0.9, freezeUnit: 3,
+    scale: 1.0, spark: 30, sparkChance: 0.6
+  },
+  borer: {
+    id: 'borer', name: 'Бурильщик',
+    role: 'Выходит из-под земли посреди поля, минуя первые ряды',
+    hp: 170, speed: 0.22, damage: 18, atkRate: 1.0, burrow: 3,
+    scale: 1.0, spark: 35, sparkChance: 0.6
+  },
+  warped: {
+    id: 'warped', name: 'Искажённый',
+    role: 'Раз в несколько секунд прыгает через разрыв на клетку вперёд',
+    hp: 190, speed: 0.16, damage: 18, atkRate: 1.0, blinkEvery: 4.5, blinkDist: 1.1,
+    scale: 1.0, spark: 40, sparkChance: 0.6
+  },
+
+  /* --- Элита четвёртого акта --- */
+  executioner: {
+    id: 'executioner', name: 'Палач',
+    role: 'Бьёт так, что обычный защитник не переживает и трёх ударов',
+    hp: 400, speed: 0.13, damage: 68, atkRate: 0.9, elite: true,
+    scale: 1.2, spark: 60, sparkChance: 0.8
+  },
+  reaper: {
+    id: 'reaper', name: 'Жнец',
+    role: 'За каждого убитого защитника залечивает себе половину раны',
+    hp: 360, speed: 0.19, damage: 30, atkRate: 1.1, lifesteal: 0.3, elite: true,
+    scale: 1.1, spark: 60, sparkChance: 0.8
+  },
+  defiler: {
+    id: 'defiler', name: 'Осквернитель',
+    role: 'Раз в несколько секунд глушит целую колонку защитников',
+    hp: 340, speed: 0.15, damage: 24, atkRate: 0.8, stunEvery: 9, stunTime: 2, elite: true,
+    scale: 1.1, spark: 65, sparkChance: 0.8
+  },
+  overlord: {
+    id: 'overlord', name: 'Владыка',
+    role: 'Босс четвёртого акта. На ходу поднимает свежих мертвецов',
+    hp: 3400, armor: 900, speed: 0.10, damage: 110, atkRate: 0.7,
+    spawnEvery: 5, spawnType: 'nibbler',
+    width: 2, scale: 1.7, boss: true, elite: true, spark: 600, sparkChance: 1
+  },
   boss: {
     id: 'boss', name: 'Колосс',
     role: 'Босс. Занимает две колонки и приносит 300 искр',
@@ -105,9 +156,10 @@ var ENEMY_TYPES = {
 };
 
 /* Порядок в бестиарии: от простых к тяжёлым */
-var ENEMY_ORDER = ['walker', 'runner', 'jumper', 'spitter', 'burster', 'armored',
-                   'phantom', 'swarm', 'carrier', 'howler', 'shielder', 'healer',
-                   'devourer', 'boss', 'titan'];
+var ENEMY_ORDER = ['walker', 'nibbler', 'runner', 'jumper', 'spitter', 'burster',
+                   'armored', 'frostling', 'borer', 'phantom', 'swarm', 'carrier',
+                   'howler', 'shielder', 'healer', 'devourer', 'warped',
+                   'executioner', 'reaper', 'defiler', 'boss', 'titan', 'overlord'];
 
 var Enemies = {
   /* Создание врага. opts.hpMul — множитель HP для усиленных волн. */
@@ -133,6 +185,9 @@ var Enemies = {
       spawnEveryT: t.spawnEvery || 0,
       devourLeft: t.devour || 0,
       rootT: 0,                   // пригвождён сетью: стоит, но бьётся
+      blinkT: t.blinkEvery || 0,  // искажённый копит прыжок через разрыв
+      stunT: t.stunEvery || 0,    // осквернитель копит порчу колонки
+      warp: 0,                    // вспышка разрыва после прыжка
       hasted: false,              // подсветка ауры ревуна
       guarded: false,             // подсветка ауры щитоносца
       phased: false,              // в фазе снаряды проходят насквозь
@@ -291,6 +346,23 @@ var Enemies = {
     var g = u * gapFactor;
     Draw.circle(ctx, -g, ey, r); ctx.fill();
     Draw.circle(ctx, g, ey, r); ctx.fill();
+  },
+
+  /* Метка элиты: тонкий венец над головой. Нужна, чтобы в общей куче
+     четвёртого акта элита читалась с первого взгляда. */
+  elite: function (ctx, u, k, e, time) {
+    ctx.save();
+    ctx.globalAlpha *= 0.55 + 0.25 * Math.sin(time * 2.4 + e.wobble);
+    ctx.strokeStyle = PAL.elite;
+    ctx.lineWidth = Math.max(1.2, 1.6 * k);
+    ctx.beginPath();
+    ctx.moveTo(-u * 0.16, -u * 0.40);
+    ctx.lineTo(-u * 0.06, -u * 0.48);
+    ctx.lineTo(0, -u * 0.40);
+    ctx.lineTo(u * 0.06, -u * 0.48);
+    ctx.lineTo(u * 0.16, -u * 0.40);
+    ctx.stroke();
+    ctx.restore();
   },
 
   mouth: function (ctx, u, k, w, my) {
@@ -747,6 +819,254 @@ var Enemies = {
       ctx.moveTo(-u * 0.30, -u * 0.26); ctx.lineTo(u * 0.30, -u * 0.26);
       ctx.stroke();
       ctx.restore();
+    },
+
+    /* Грызун: мелкий комок на длинных лапах */
+    nibbler: function (ctx, u, k, e, time, gait) {
+      ctx.save();
+      ctx.strokeStyle = PAL.outline;
+      ctx.lineWidth = Math.max(1.4, 2 * k);
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(-u * 0.08, u * 0.12); ctx.lineTo(-u * 0.14 + gait * u * 0.07, u * 0.28);
+      ctx.moveTo(u * 0.08, u * 0.12); ctx.lineTo(u * 0.14 - gait * u * 0.07, u * 0.28);
+      ctx.stroke();
+      ctx.restore();
+      Enemies.shell(ctx, e, k, function () {
+        Draw.roundRect(ctx, -u * 0.18, -u * 0.16, u * 0.36, u * 0.30, u * 0.14);
+      });
+      Enemies.eyes(ctx, u, k, e, 0.07, -u * 0.05, 1.2 * k);
+      Enemies.mouth(ctx, u, k, u * 0.10, u * 0.06);
+    },
+
+    /* Ледяной: корпус в наледи, по кромке торчат иглы */
+    frostling: function (ctx, u, k, e, time, gait) {
+      Enemies.shell(ctx, e, k, function () {
+        Draw.poly(ctx, [
+          [0, -u * 0.30], [u * 0.24, -u * 0.14], [u * 0.20, u * 0.18],
+          [-u * 0.20, u * 0.18], [-u * 0.24, -u * 0.14]
+        ]);
+      });
+      ctx.save();
+      ctx.globalAlpha *= 0.75;
+      ctx.strokeStyle = PAL.ice;
+      ctx.lineWidth = Math.max(1, 1.4 * k);
+      ctx.beginPath();
+      for (var i = -1; i <= 1; i++) {
+        ctx.moveTo(i * u * 0.14, -u * 0.28);
+        ctx.lineTo(i * u * 0.17, -u * 0.42);
+      }
+      ctx.stroke();
+      ctx.restore();
+      Enemies.eyes(ctx, u, k, e, 0.10, -u * 0.10, 1.4 * k);
+      Enemies.mouth(ctx, u, k, u * 0.16, u * 0.06);
+    },
+
+    /* Бурильщик: конусом вперёд, вокруг выброшенная порода */
+    borer: function (ctx, u, k, e, time, gait) {
+      Enemies.shell(ctx, e, k, function () {
+        Draw.poly(ctx, [
+          [-u * 0.22, -u * 0.22], [u * 0.22, -u * 0.22],
+          [u * 0.14, u * 0.12], [0, u * 0.30], [-u * 0.14, u * 0.12]
+        ]);
+      });
+      ctx.save();
+      ctx.globalAlpha *= 0.5;
+      ctx.strokeStyle = PAL.ash;
+      ctx.lineWidth = Math.max(1, 1.3 * k);
+      ctx.beginPath();
+      for (var i = 0; i < 3; i++) {
+        var y = -u * 0.10 + i * u * 0.10;
+        ctx.moveTo(-u * 0.16, y); ctx.lineTo(u * 0.16, y + u * 0.03);
+      }
+      ctx.stroke();
+      ctx.restore();
+      Enemies.eyes(ctx, u, k, e, 0.10, -u * 0.13, 1.4 * k);
+    },
+
+    /* Искажённый: тело со сдвинутым контуром, рядом висит разрыв */
+    warped: function (ctx, u, k, e, time, gait) {
+      if (e.warp > 0) {
+        ctx.save();
+        ctx.globalAlpha *= Math.min(1, e.warp) * 0.7;
+        ctx.strokeStyle = PAL.warp;
+        ctx.lineWidth = Math.max(1, 2 * k);
+        Draw.circle(ctx, 0, 0, u * 0.34 + (1 - e.warp) * u * 0.14);
+        ctx.stroke();
+        ctx.restore();
+      }
+      // Смещённое эхо силуэта
+      ctx.save();
+      ctx.globalAlpha *= 0.35;
+      ctx.fillStyle = PAL.warp;
+      Draw.roundRect(ctx, -u * 0.20 + u * 0.05, -u * 0.26, u * 0.40, u * 0.50, u * 0.10);
+      ctx.fill();
+      ctx.restore();
+      Enemies.shell(ctx, e, k, function () {
+        Draw.roundRect(ctx, -u * 0.22, -u * 0.26, u * 0.44, u * 0.50, u * 0.10);
+      });
+      Enemies.eyes(ctx, u, k, e, 0.10, -u * 0.10, 1.4 * k);
+      Enemies.mouth(ctx, u, k, u * 0.18, u * 0.08);
+    },
+
+    /* Палач: сгорбленная туша с занесённым топором */
+    executioner: function (ctx, u, k, e, time, gait) {
+      ctx.save();
+      ctx.strokeStyle = PAL.outline;
+      ctx.lineWidth = Math.max(2, 4 * k);
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(-u * 0.14, u * 0.18); ctx.lineTo(-u * 0.18 + gait * u * 0.05, u * 0.36);
+      ctx.moveTo(u * 0.14, u * 0.18); ctx.lineTo(u * 0.18 - gait * u * 0.05, u * 0.36);
+      ctx.stroke();
+      ctx.restore();
+
+      Enemies.shell(ctx, e, k, function () {
+        Draw.poly(ctx, [
+          [-u * 0.20, -u * 0.26], [u * 0.20, -u * 0.26], [u * 0.34, -u * 0.02],
+          [u * 0.24, u * 0.22], [-u * 0.24, u * 0.22], [-u * 0.34, -u * 0.02]
+        ]);
+      });
+
+      // Топор
+      ctx.save();
+      ctx.translate(u * 0.30, -u * 0.20);
+      ctx.rotate(-0.4 + Math.sin(time * 1.4) * 0.12);
+      ctx.strokeStyle = PAL.outline;
+      ctx.lineWidth = Math.max(1.6, 2.6 * k);
+      ctx.beginPath();
+      ctx.moveTo(0, u * 0.22); ctx.lineTo(0, -u * 0.26);
+      ctx.stroke();
+      ctx.fillStyle = '#8A9AA8';
+      ctx.lineWidth = Math.max(1.2, 1.8 * k);
+      Draw.poly(ctx, [[0, -u * 0.30], [u * 0.20, -u * 0.20], [0, -u * 0.08], [-u * 0.10, -u * 0.20]]);
+      ctx.fill(); ctx.stroke();
+      ctx.restore();
+
+      Enemies.eyes(ctx, u, k, e, 0.12, -u * 0.14, 1.7 * k);
+      Enemies.elite(ctx, u, k, e, time);
+    },
+
+    /* Жнец: балахон с капюшоном и косой */
+    reaper: function (ctx, u, k, e, time, gait) {
+      ctx.save();
+      ctx.strokeStyle = PAL.outline;
+      ctx.lineWidth = Math.max(1.6, 2.8 * k);
+      ctx.beginPath();
+      ctx.moveTo(-u * 0.32, u * 0.28); ctx.lineTo(-u * 0.26, -u * 0.34);
+      ctx.stroke();
+      ctx.fillStyle = '#8A9AA8';
+      ctx.lineWidth = Math.max(1.2, 1.8 * k);
+      ctx.beginPath();
+      ctx.moveTo(-u * 0.26, -u * 0.34);
+      ctx.quadraticCurveTo(u * 0.04, -u * 0.44, u * 0.10, -u * 0.22);
+      ctx.quadraticCurveTo(-u * 0.06, -u * 0.30, -u * 0.26, -u * 0.28);
+      ctx.closePath();
+      ctx.fill(); ctx.stroke();
+      ctx.restore();
+
+      Enemies.shell(ctx, e, k, function () {
+        Draw.poly(ctx, [
+          [0, -u * 0.32], [u * 0.20, -u * 0.14], [u * 0.28, u * 0.24],
+          [-u * 0.28, u * 0.24], [-u * 0.20, -u * 0.14]
+        ]);
+      });
+      // Капюшон
+      ctx.save();
+      ctx.globalAlpha *= 0.8;
+      ctx.fillStyle = PAL.bgDeep;
+      Draw.poly(ctx, [
+        [0, -u * 0.28], [u * 0.15, -u * 0.12], [-u * 0.15, -u * 0.12]
+      ]);
+      ctx.fill();
+      ctx.restore();
+      Enemies.eyes(ctx, u, k, e, 0.07, -u * 0.17, 1.5 * k);
+      Enemies.elite(ctx, u, k, e, time);
+    },
+
+    /* Осквернитель: воздетые руки и пятно порчи под ногами */
+    defiler: function (ctx, u, k, e, time, gait) {
+      var charge = e.def.stunEvery ? 1 - Math.max(0, e.stunT) / e.def.stunEvery : 0;
+      ctx.save();
+      ctx.globalAlpha *= 0.15 + 0.3 * charge;
+      ctx.fillStyle = PAL.warp;
+      ctx.beginPath();
+      ctx.ellipse(0, u * 0.26, u * 0.34, u * 0.10, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // Воздетые руки
+      ctx.save();
+      ctx.strokeStyle = PAL.outline;
+      ctx.lineWidth = Math.max(1.6, 2.8 * k);
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(-u * 0.18, -u * 0.06); ctx.lineTo(-u * 0.30, -u * 0.34);
+      ctx.moveTo(u * 0.18, -u * 0.06); ctx.lineTo(u * 0.30, -u * 0.34);
+      ctx.stroke();
+      ctx.restore();
+
+      Enemies.shell(ctx, e, k, function () {
+        Draw.poly(ctx, [
+          [0, -u * 0.28], [u * 0.22, -u * 0.10], [u * 0.24, u * 0.22],
+          [-u * 0.24, u * 0.22], [-u * 0.22, -u * 0.10]
+        ]);
+      });
+      Enemies.eyes(ctx, u, k, e, 0.09, -u * 0.12, 1.5 * k);
+      Enemies.elite(ctx, u, k, e, time);
+    },
+
+    /* Владыка: босс четвёртого акта — корона, плечи, четыре глаза */
+    overlord: function (ctx, u, k, e, time, gait) {
+      ctx.save();
+      ctx.strokeStyle = PAL.outline;
+      ctx.lineWidth = Math.max(3, 6 * k);
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(-u * 0.22, u * 0.20); ctx.lineTo(-u * 0.26 + gait * u * 0.04, u * 0.40);
+      ctx.moveTo(u * 0.22, u * 0.20); ctx.lineTo(u * 0.26 - gait * u * 0.04, u * 0.40);
+      ctx.stroke();
+      ctx.restore();
+
+      Enemies.shell(ctx, e, k, function () {
+        Draw.poly(ctx, [
+          [-u * 0.24, -u * 0.30], [u * 0.24, -u * 0.30], [u * 0.50, -u * 0.04],
+          [u * 0.38, u * 0.26], [-u * 0.38, u * 0.26], [-u * 0.50, -u * 0.04]
+        ]);
+      });
+
+      if (e.armor > 0) {
+        ctx.save();
+        ctx.fillStyle = '#39434F';
+        ctx.strokeStyle = PAL.outline;
+        ctx.lineWidth = Math.max(1.4, 2 * k);
+        Draw.poly(ctx, [
+          [-u * 0.28, -u * 0.06], [u * 0.28, -u * 0.06],
+          [u * 0.20, u * 0.22], [-u * 0.20, u * 0.22]
+        ]);
+        ctx.fill(); ctx.stroke();
+        ctx.restore();
+      }
+
+      // Корона
+      ctx.save();
+      ctx.fillStyle = PAL.elite;
+      ctx.strokeStyle = PAL.outline;
+      ctx.lineWidth = Math.max(1.2, 1.8 * k);
+      Draw.poly(ctx, [
+        [-u * 0.22, -u * 0.34], [-u * 0.22, -u * 0.50], [-u * 0.10, -u * 0.40],
+        [0, -u * 0.56], [u * 0.10, -u * 0.40], [u * 0.22, -u * 0.50], [u * 0.22, -u * 0.34]
+      ]);
+      ctx.fill(); ctx.stroke();
+      ctx.restore();
+
+      ctx.fillStyle = PAL.enemy;
+      var ey = -u * 0.16, r = 1.9 * k;
+      Draw.circle(ctx, -u * 0.26, ey, r); ctx.fill();
+      Draw.circle(ctx, -u * 0.09, ey, r); ctx.fill();
+      Draw.circle(ctx, u * 0.09, ey, r); ctx.fill();
+      Draw.circle(ctx, u * 0.26, ey, r); ctx.fill();
+      Enemies.mouth(ctx, u, k, u * 0.40, u * 0.02);
     },
 
     /* Колосс: две колонки в ширину, рога и четыре глаза */

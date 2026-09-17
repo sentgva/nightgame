@@ -63,7 +63,9 @@ function rng(seed) {
    а срыв партии до того, как игрок успел что-то построить. */
 var MIN_WAVE = {
   armored: 3, phantom: 3, swarm: 4, healer: 5,
-  carrier: 3, howler: 3, shielder: 4, devourer: 4
+  carrier: 3, howler: 3, shielder: 4, devourer: 4,
+  frostling: 2, borer: 3, warped: 3,
+  executioner: 2, reaper: 3, defiler: 4
 };
 
 /* Разворачивает паспорт уровня в 10 волн */
@@ -120,6 +122,7 @@ function mk(o) {
     craters: o.craters || 0, vines: o.vines || 0,
     iceEvery: o.iceEvery || 0, collapseEvery: o.collapseEvery || 0,
     sporeEvery: o.sporeEvery || 0, meteorEvery: o.meteorEvery || 0,
+    siegeEvery: o.siegeEvery || 0, siegePool: o.siegePool || null,
     glitchEvery: o.glitchEvery || 0, harvestEvery: o.harvestEvery || 0,
     darkBand: !!o.darkBand,
     waves: waves
@@ -155,6 +158,8 @@ function gen(o) {
       meteorEvery: o.meteorEvery || 0,
       glitchEvery: o.glitchEvery || 0,
       harvestEvery: o.harvestEvery || 0,
+      siegeEvery: o.siegeEvery || 0,
+      siegePool: o.siegePool || null,
       darkBand: o.darkBand
     }));
   }
@@ -237,7 +242,14 @@ var PLANETS = [
     mechanic: 'Аномалия: колонка защитников замолкает',
     roster: ['resonator', 'voidwall', 'disruptor', 'stabilizer', 'singular'],
     desc: 'Аномалия глушит целые колонки. Последние пятнадцать ночей.'
-  }
+  },
+  {
+    id: 10, act: 4, name: 'Цитадель', sub: 'Осада', levels: 5,
+    color: '#F43F5E', fill: '#2A0E16', feature: 'craters', ring: true,
+    mechanic: 'Осада: подкрепление приходит само, поверх волн',
+    roster: ['altar', 'bastion', 'lancer', 'inquisitor', 'ward'],
+    desc: 'Пять ночей без передышки. Сюда приходит вся элита, а между волнами осада шлёт подкрепление сама. Здесь ждёт Владыка.'
+  },
 ];
 
 var LEVELS = [].concat(
@@ -250,7 +262,7 @@ var LEVELS = [].concat(
              4: 'Прыгун один раз перескочит через ряд защитников',
              5: 'На финальной волне придёт колосс' },
     unlocks: { 1: ['beacon', 'shooter'], 2: ['barrier'], 3: ['mine'], 4: ['spikes'], 5: ['repair'] },
-    pool: [['walker', 1, 3], ['runner', 2, 2], ['jumper', 3, 2]],
+    pool: [['walker', 1, 3], ['nibbler', 2, 2], ['jumper', 3, 2]],
     base: [4, 6], growth: 1.0, gap: 2.8,
     sparks: [100, 175], hp: [1.0, 1.1],
     bosses: { 5: { wave: 10, count: 1, hpMul: 1 } }
@@ -263,7 +275,7 @@ var LEVELS = [].concat(
     hints: { 2: 'Пепельник взрывается при смерти и обжигает защитника под собой',
              4: 'Зонт сбивает плевки над собой и соседями',
              6: 'Фантом уходит в фазу — в этот момент снаряды проходят насквозь' },
-    pool: [['walker', 1, 3], ['burster', 1, 2], ['spitter', 2, 2], ['phantom', 4, 2]],
+    pool: [['walker', 1, 3], ['burster', 1, 2], ['spitter', 2, 2]],
     base: [5, 7], growth: 1.15, gap: 2.4,
     sparks: [175, 250], hp: [1.1, 1.35],
     bosses: { 10: { wave: 10, count: 1, hpMul: 1.2 } }
@@ -278,7 +290,7 @@ var LEVELS = [].concat(
              5: 'Рой при смерти распадается надвое',
              6: 'Лекарь чинит соседей — выбивай его первым',
              8: 'Сеть пригвождает врага к месту' },
-    pool: [['walker', 1, 3], ['runner', 1, 2], ['armored', 3, 2], ['swarm', 4, 2], ['healer', 5, 2]],
+    pool: [['walker', 1, 2], ['frostling', 2, 2], ['runner', 3, 2], ['armored', 3, 2]],
     base: [5, 8], growth: 1.2, gap: 2.2,
     sparks: [250, 350], hp: [1.35, 1.7],
     bosses: { 15: { wave: 10, count: 1, hpMul: 1.3 } }
@@ -292,7 +304,7 @@ var LEVELS = [].concat(
     hints: { 1: 'Капкан глотает врага целиком, потом долго жуёт',
              3: 'Носитель высаживает бегунов прямо на ходу',
              4: 'Ревун разгоняет всех вокруг себя' },
-    pool: [['walker', 1, 2], ['runner', 1, 2], ['jumper', 2, 2], ['carrier', 3, 2], ['howler', 3, 2]],
+    pool: [['walker', 1, 2], ['runner', 1, 2], ['carrier', 3, 2], ['howler', 3, 2]],
     base: [4.5, 6.5], growth: 1.15, gap: 2.2,
     sparks: [375, 425], hp: [1.34, 1.46],
     bosses: { 5: { wave: 10, count: 1, hpMul: 1.3 } }
@@ -304,7 +316,7 @@ var LEVELS = [].concat(
     hint: 'Своды обваливаются: свободных клеток с каждой волной меньше',
     hints: { 1: 'Мортира бьёт по площади, маятник косит три колонки вплотную',
              4: 'Щитоносец вдвое режет урон по соседям' },
-    pool: [['walker', 1, 2], ['burster', 1, 2], ['spitter', 2, 2], ['armored', 3, 2], ['shielder', 4, 2]],
+    pool: [['walker', 1, 2], ['borer', 3, 2], ['spitter', 4, 2], ['shielder', 4, 2]],
     base: [4.5, 7], growth: 1.2, gap: 2.1,
     sparks: [400, 475], hp: [1.55, 1.75],
     bosses: { 10: { wave: 10, count: 1, hpMul: 1.35 } }
@@ -317,8 +329,7 @@ var LEVELS = [].concat(
     hint: 'Споры сбивают темп вдвое и выветриваются сами',
     hints: { 1: 'Лазер прошивает колонку насквозь, молния бьёт цепью по троим',
              5: 'Рой распадается надвое — считай это заранее' },
-    pool: [['walker', 1, 2], ['runner', 1, 2], ['carrier', 2, 2], ['swarm', 4, 2],
-           ['phantom', 4, 2], ['healer', 5, 2]],
+    pool: [['walker', 1, 2], ['nibbler', 2, 2], ['swarm', 4, 2], ['healer', 5, 2]],
     base: [4.5, 7], growth: 1.2, gap: 2.0,
     sparks: [475, 575], hp: [1.75, 2.0],
     bosses: { 8: { wave: 10, count: 1, hpMul: 1.2 },
@@ -331,8 +342,7 @@ var LEVELS = [].concat(
     names: ['Трещина', 'Первый мост', 'Осколки', 'Перевал', 'Страж разлома'],
     hint: 'В полосе тьмы враг виден только по глазам',
     hints: { 2: 'Пожиратель съедает защитника целиком — не берёт только барьер' },
-    pool: [['walker', 1, 2], ['runner', 1, 2], ['armored', 2, 2], ['phantom', 3, 2],
-           ['devourer', 4, 2], ['shielder', 4, 2]],
+    pool: [['walker', 1, 2], ['phantom', 2, 2], ['armored', 3, 2], ['devourer', 4, 2]],
     base: [4.5, 6.5], growth: 1.15, gap: 2.0,
     sparks: [575, 650], hp: [1.9, 2.05],
     bosses: { 5: { wave: 10, type: 'titan', count: 1, hpMul: 1.3 } }
@@ -342,8 +352,7 @@ var LEVELS = [].concat(
     names: ['Заслонка', 'Жар', 'Литейный', 'Шлак', 'Горн печи',
             'Выплавка', 'Раскал', 'Слиток', 'Топка', 'Мастер печи'],
     hint: 'Кольцо загорается заранее — успей убрать юнита с клетки',
-    pool: [['walker', 1, 2], ['burster', 1, 2], ['armored', 2, 2], ['howler', 3, 2],
-           ['carrier', 4, 2], ['devourer', 4, 2]],
+    pool: [['walker', 1, 2], ['runner', 1, 2], ['burster', 2, 2], ['howler', 3, 2], ['carrier', 5, 2]],
     base: [4.5, 7], growth: 1.2, gap: 1.9,
     sparks: [650, 750], hp: [2.05, 2.25],
     bosses: { 10: { wave: 10, type: 'titan', count: 2, hpMul: 1.3 } }
@@ -354,12 +363,31 @@ var LEVELS = [].concat(
             'Тьма', 'Дно', 'Отражение', 'Эхо бездны', 'Последний свет', 'Сердце бездны', 'Конец'],
     hint: 'Аномалия глушит целую колонку — держи запасной эшелон',
     hints: { 15: 'Последняя ночь. Два титана и всё остальное следом' },
-    pool: [['walker', 1, 2], ['runner', 1, 2], ['armored', 2, 2], ['phantom', 3, 2],
-           ['swarm', 4, 2], ['devourer', 4, 2], ['shielder', 5, 2], ['healer', 6, 2]],
+    pool: [['walker', 1, 2], ['warped', 3, 2], ['phantom', 3, 2], ['swarm', 4, 2], ['devourer', 5, 2], ['healer', 6, 2]],
     base: [6, 8.5], growth: 1.35, gap: 1.7,
     sparks: [750, 900], hp: [2.45, 3.0],
     bosses: { 8: { wave: 10, type: 'titan', count: 1, hpMul: 1.3 },
               15: { wave: 10, type: 'titan', count: 2, hpMul: 1.4 } }
+  })
+);
+
+/* ================= АКТ IV: Цитадель, уровни 91-95 ================= */
+LEVELS = LEVELS.concat(
+  gen({
+    planet: 10, from: 91, count: 5,
+    siegeEvery: 14, siegePool: ['walker', 'nibbler', 'armored'],
+    names: ['Ворота', 'Первая стена', 'Внутренний двор', 'Донжон', 'Владыка'],
+    hint: 'Осада не ждёт конца волны — подкрепление приходит само',
+    hints: { 1: 'Палач сносит обычного защитника с трёх ударов — нужен Бастион',
+             2: 'Жнец лечится за каждого убитого защитника',
+             4: 'Осквернитель глушит колонку. Оберег этого не позволит',
+             5: 'Владыка. Броня, свита и четыре тысячи здоровья' },
+    pool: [['walker', 1, 2], ['executioner', 2, 2], ['reaper', 3, 2],
+           ['armored', 3, 2], ['defiler', 4, 2], ['warped', 4, 2]],
+    base: [5, 7], growth: 1.25, gap: 1.9,
+    sparks: [1000, 1200], hp: [2.1, 2.5],
+    bosses: { 3: { wave: 10, type: 'titan', count: 1, hpMul: 1.4 },
+              5: { wave: 10, type: 'overlord', count: 1, hpMul: 1 } }
   })
 );
 

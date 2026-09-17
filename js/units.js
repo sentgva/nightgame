@@ -400,6 +400,41 @@ var PLANET_UNITS = {
     upgradeKey: 'damage', role: 'Бьёт светом через всю колонку'
   },
 
+  /* --- Акт 4: Цитадель (осада) --- */
+  altar: {
+    id: 'altar', name: 'Алтарь', cost: 75, hp: 130, cooldown: 6,
+    color: PAL.uAltar, fill: PAL.uAltarF,
+    produce: 25, interval: 7, ecoOn: 'kill', ecoBonus: 8,
+    upgradeKey: 'produce',
+    role: 'Берёт свою долю с каждого павшего врага'
+  },
+  bastion: {
+    id: 'bastion', name: 'Бастион', cost: 125, hp: 1400, cooldown: 15,
+    color: PAL.uBastion, fill: PAL.uBastionF,
+    upgradeKey: 'hp',
+    role: 'Самая тяжёлая стена. Осада начинается с неё'
+  },
+  lancer: {
+    id: 'lancer', name: 'Копейщик', cost: 110, hp: 130, cooldown: 5,
+    color: PAL.uLancer, fill: PAL.uLancerF,
+    damage: 22, fireRate: 1.0, range: 7, shotSound: 'shot',
+    upgradeKey: 'damage',
+    role: 'Мечет копья через всю колонку'
+  },
+  inquisitor: {
+    id: 'inquisitor', name: 'Инквизитор', cost: 250, hp: 140, cooldown: 12,
+    color: PAL.uInquis, fill: PAL.uInquisF,
+    damage: 72, fireRate: 0.7, range: 7, pierceGuard: true, shotSound: 'shotBig',
+    upgradeKey: 'damage',
+    role: 'Тяжёлый выстрел, которому щиты не помеха'
+  },
+  ward: {
+    id: 'ward', name: 'Оберег', cost: 150, hp: 140, cooldown: 11,
+    color: PAL.uWard, fill: PAL.uWardF,
+    antiGlitch: true, upgradeKey: 'hp',
+    role: 'Осквернитель не может заглушить его колонку'
+  },
+
   /* --- Планета 9: Бездна (аномалия) --- */
   resonator: {
     id: 'resonator', name: 'Резонатор', cost: 75, hp: 110, cooldown: 6,
@@ -448,7 +483,8 @@ var UNIT_ORDER = [
   /* планета 6 */ 'sporepod', 'tarwall', 'sting', 'laser', 'tesla', 'net',
   /* планета 7 */ 'glowfly', 'monolith', 'ray', 'lantern', 'cutter', 'anchor',
   /* планета 8 */ 'heatsink', 'shieldwall', 'smelter', 'rodtower', 'hammer',
-  /* планета 9 */ 'resonator', 'voidwall', 'disruptor', 'stabilizer', 'singular'
+  /* планета 9 */ 'resonator', 'voidwall', 'disruptor', 'stabilizer', 'singular',
+  /* цитадель  */ 'altar', 'bastion', 'lancer', 'inquisitor', 'ward'
 ];
 
 /* Множитель основного параметра по ступеням: 1 — обычный, 2 — улучшенный,
@@ -1371,6 +1407,121 @@ var Units = {
     jack:    function (ctx, u, k, t, opts, time) { Units.basicGun(ctx, u, k, t, opts, time, 'drill'); },
     sting:   function (ctx, u, k, t, opts, time) { Units.basicGun(ctx, u, k, t, opts, time, 'spore'); },
     ray:     function (ctx, u, k, t, opts, time) { Units.basicGun(ctx, u, k, t, opts, time, 'beam'); },
+
+    /* --- Акт 4: Цитадель --- */
+    /* Алтарь: чаша на ступенях, над ней парит огонёк */
+    altar: function (ctx, u, k, t, opts, time) {
+      ctx.lineWidth = Math.max(1, k);
+      var glow = 0.5 + 0.5 * Math.sin(time * 2.2);
+      ctx.fillStyle = opts.hurt ? '#2A323C' : t.fill;
+      ctx.strokeStyle = t.color;
+      Draw.poly(ctx, [[-u * 0.30, u * 0.14], [u * 0.30, u * 0.14],
+                      [u * 0.24, u * 0.30], [-u * 0.24, u * 0.30]]);
+      ctx.fill(); ctx.stroke();
+      Draw.poly(ctx, [[-u * 0.20, -u * 0.06], [u * 0.20, -u * 0.06],
+                      [u * 0.15, u * 0.14], [-u * 0.15, u * 0.14]]);
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = t.color;
+      ctx.globalAlpha = 0.2 + 0.35 * glow;
+      Draw.circle(ctx, 0, -u * 0.22, u * 0.12 + u * 0.02 * glow); ctx.fill();
+      ctx.globalAlpha = 1;
+      Draw.circle(ctx, 0, -u * 0.22, u * 0.055); ctx.fill();
+    },
+
+    /* Бастион: зубчатая башня */
+    bastion: function (ctx, u, k, t, opts, time) {
+      ctx.lineWidth = Math.max(1, k);
+      ctx.fillStyle = opts.hurt ? '#2A323C' : t.fill;
+      ctx.strokeStyle = t.color;
+      Draw.poly(ctx, [
+        [-u * 0.32, -u * 0.22], [-u * 0.32, -u * 0.34], [-u * 0.18, -u * 0.34],
+        [-u * 0.18, -u * 0.24], [-u * 0.06, -u * 0.24], [-u * 0.06, -u * 0.34],
+        [u * 0.06, -u * 0.34], [u * 0.06, -u * 0.24], [u * 0.18, -u * 0.24],
+        [u * 0.18, -u * 0.34], [u * 0.32, -u * 0.34], [u * 0.32, -u * 0.22],
+        [u * 0.30, u * 0.30], [-u * 0.30, u * 0.30]
+      ]);
+      ctx.fill(); ctx.stroke();
+      ctx.globalAlpha = 0.4;
+      ctx.beginPath();
+      for (var i = 0; i < 3; i++) {
+        var y = -u * 0.10 + i * u * 0.13;
+        ctx.moveTo(-u * 0.26, y); ctx.lineTo(u * 0.26, y);
+      }
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      // Бойница
+      ctx.fillStyle = PAL.bgDeep;
+      Draw.roundRect(ctx, -u * 0.05, -u * 0.16, u * 0.10, u * 0.16, u * 0.04);
+      ctx.fill();
+    },
+
+    /* Копейщик: станок с копьём наготове */
+    lancer: function (ctx, u, k, t, opts, time) {
+      ctx.lineWidth = Math.max(1, k);
+      Units.body(ctx, t, opts, u * 0.42, u * 0.30, u * 0.09, u * 0.14);
+      ctx.strokeStyle = t.color;
+      ctx.lineWidth = Math.max(1, 2.2 * k);
+      ctx.beginPath();
+      ctx.moveTo(0, u * 0.10); ctx.lineTo(0, -u * 0.30);
+      ctx.stroke();
+      ctx.fillStyle = t.color;
+      Draw.poly(ctx, [[0, -u * 0.44], [u * 0.08, -u * 0.26], [-u * 0.08, -u * 0.26]]);
+      ctx.fill();
+      ctx.lineWidth = Math.max(1, k);
+      ctx.globalAlpha = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(-u * 0.12, -u * 0.18); ctx.lineTo(u * 0.12, -u * 0.18);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    },
+
+    /* Инквизитор: тяжёлый ствол на треноге */
+    inquisitor: function (ctx, u, k, t, opts, time) {
+      ctx.lineWidth = Math.max(1, k);
+      ctx.strokeStyle = t.color;
+      ctx.lineWidth = Math.max(1, 2 * k);
+      ctx.beginPath();
+      ctx.moveTo(-u * 0.24, u * 0.30); ctx.lineTo(0, u * 0.02);
+      ctx.moveTo(u * 0.24, u * 0.30); ctx.lineTo(0, u * 0.02);
+      ctx.moveTo(0, u * 0.30); ctx.lineTo(0, u * 0.02);
+      ctx.stroke();
+      ctx.lineWidth = Math.max(1, k);
+      ctx.fillStyle = opts.hurt ? '#2A323C' : t.fill;
+      Draw.roundRect(ctx, -u * 0.13, -u * 0.38, u * 0.26, u * 0.42, u * 0.05);
+      ctx.fill(); ctx.stroke();
+      // Дульный срез
+      ctx.fillStyle = PAL.bgDeep;
+      ctx.beginPath();
+      ctx.ellipse(0, -u * 0.37, u * 0.10, u * 0.035, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = t.color;
+      ctx.stroke();
+      // Клеймо
+      ctx.fillStyle = t.color;
+      ctx.globalAlpha = 0.6;
+      ctx.fillRect(-u * 0.09, -u * 0.16, u * 0.18, u * 0.05);
+      ctx.globalAlpha = 1;
+    },
+
+    /* Оберег: печать в раме, которая медленно вращается */
+    ward: function (ctx, u, k, t, opts, time) {
+      ctx.lineWidth = Math.max(1, k);
+      Units.body(ctx, t, opts, u * 0.26, u * 0.20, u * 0.06, u * 0.22);
+      ctx.save();
+      ctx.translate(0, -u * 0.14);
+      ctx.rotate(time * 0.5);
+      ctx.strokeStyle = t.color;
+      ctx.lineWidth = Math.max(1, 1.6 * k);
+      Draw.ngon(ctx, 0, 0, u * 0.22, 6, 0);
+      ctx.stroke();
+      Draw.ngon(ctx, 0, 0, u * 0.13, 3, Math.PI / 2);
+      ctx.stroke();
+      ctx.restore();
+      ctx.fillStyle = t.color;
+      ctx.globalAlpha = 0.4 + 0.4 * Math.sin(time * 2.6);
+      Draw.circle(ctx, 0, -u * 0.14, u * 0.055); ctx.fill();
+      ctx.globalAlpha = 1;
+    },
 
     /* --- Планета 2 --- */
     /* Колодец: сруб над кратером, из которого поднимается пепел */

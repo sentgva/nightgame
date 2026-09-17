@@ -57,6 +57,7 @@ var Game = {
   selected: null, lastPlaceTs: 0, menuUnit: null,
   iceT: 0, collapseT: 0, sporeT: 0, meteorT: 0, glitchT: 0,
   litCols: [1, 1, 1, 1, 1],
+  siegeT: 0,
   meteors: [], bolts: [], darkY: 0, harvestT: 0,
   dev: false, devImmortal: true,
   shake: 0, edgeFlash: 0,
@@ -113,6 +114,7 @@ var Game = {
     this.sporeT = this.level.sporeEvery || 0;
     this.meteorT = this.level.meteorEvery || 0;
     this.harvestT = this.level.harvestEvery || 0;
+    this.siegeT = this.level.siegeEvery || 0;
     this.glitchT = this.level.glitchEvery || 0;
     this.meteors.length = 0;
     this.bolts.length = 0;
@@ -224,6 +226,7 @@ var Game = {
     this.stepMeteors(dt);
     this.stepGlitch(dt);
     this.stepHarvest(dt);
+    this.stepSiege(dt);
     for (var bi = this.bolts.length - 1; bi >= 0; bi--) {
       this.bolts[bi].t -= dt;
       if (this.bolts[bi].t <= 0) this.bolts.splice(bi, 1);
@@ -498,6 +501,38 @@ var Game = {
       }
 
       if (e.attacking > 0) e.attacking = Math.max(0, e.attacking - dt);
+      if (e.warp > 0) e.warp = Math.max(0, e.warp - dt / 0.35);
+
+      // Искажённый рвёт пространство и оказывается ближе к рубежу
+      if (e.def.blinkEvery && e.y > 0) {
+        e.blinkT -= dt;
+        if (e.blinkT <= 0) {
+          e.blinkT = e.def.blinkEvery;
+          e.y = Math.min(Grid.h - cell * 0.2, e.y + e.def.blinkDist * cell);
+          e.warp = 1;
+          Sound.play('freeze');
+          this.spawnParticles(Enemies.centerX(e, cell), e.y, 6, PAL.warp, 150, 0.3, false);
+        }
+      }
+
+      // Осквернитель глушит целую колонку защитников
+      if (e.def.stunEvery && e.y > 0) {
+        e.stunT -= dt;
+        if (e.stunT <= 0) {
+          e.stunT = e.def.stunEvery;
+          var hitAny = false;
+          for (var sr = 0; sr < Grid.rows; sr++) {
+            var su = Grid.get(e.col, sr);
+            if (!su || su.dead || su.def.antiGlitch) continue;
+            su.stunned = e.def.stunTime;
+            hitAny = true;
+          }
+          if (hitAny) {
+            Sound.play('deny');
+            this.spawnParticles(Enemies.centerX(e, cell), e.y, 7, PAL.warp, 160, 0.4, false);
+          }
+        }
+      }
 
       // Фантом циклично уходит в фазу: в ней снаряды проходят насквозь
       if (e.def.phaseEvery) {
@@ -576,7 +611,15 @@ var Game = {
           e.atkCd = 1 / e.def.atkRate;
           e.attacking = 0.3;
           if (blocker.def.chill) e.slowT = Math.max(e.slowT, blocker.def.chill);
+          // Ледяной сковывает того, кого грызёт
+          if (e.def.freezeUnit) blocker.frozen = Math.max(blocker.frozen, e.def.freezeUnit);
+          var before = blocker.hp;
           this.damageUnit(blocker, e.def.damage);
+          // Жнец отъедается на убитых защитниках
+          if (e.def.lifesteal && blocker.dead) {
+            e.hp = Math.min(e.maxHp, e.hp + e.maxHp * e.def.lifesteal);
+            this.spawnParticles(Enemies.centerX(e, cell), e.y, 6, PAL.heal, 150, 0.35, true);
+          }
         }
         continue;
       }
@@ -663,6 +706,7 @@ var Game = {
     // Награда идёт в счётчик сразу: подбирать нужно только искры маяков,
     // иначе в плотной волне половина дохода просто истлевала бы на поле.
     this.gain(e.def.spark * CONFIG.killRewardMul, x, e.y);
+    this.ecoEvent('kill');
 
     // Пепельник напоследок обжигает защитника под собой
     if (e.def.deathBlast) {
@@ -940,6 +984,21 @@ var Game = {
       }
       this.meteors.splice(i, 1);
     }
+  },
+
+  /* Цитадель: осада не считается с волнами. Раз в несколько секунд
+     подкрепление приходит само, поверх расписания — передышек нет. */
+  stepSiege: function (dt) {
+    var every = this.level.siegeEvery;
+    if (!every || this.phase !== 'wave' || this.over) return;
+    this.siegeT -= dt;
+    if (this.siegeT > 0) return;
+    this.siegeT = every;
+
+    var pool = this.level.siegePool || ['walker'];
+    var type = pool[Math.floor(Math.random() * pool.length)];
+    this.spawnEnemy({ type: type, col: 'random' });
+    UI.toast('Подкрепление осады');
   },
 
   /* Ферма: поле само роняет зерно. Механика в плюс игроку — первая планета
@@ -1403,6 +1462,12 @@ var Game = {
     var mul = (spec.hpMul || 1) * scale;
     var e = Enemies.create(spec.type, col, { hpMul: mul });
     e.y = -Grid.cell * (0.5 + Math.random() * 0.3);
+    // Бурильщик не идёт сверху, а вылезает посреди поля
+    if (e.def.burrow) {
+      e.y = Grid.centerY(e.def.burrow);
+      e.spawnT = 0;
+      this.spawnParticles(Enemies.centerX(e, Grid.cell), e.y, 8, PAL.ash, 170, 0.4, false);
+    }
     this.enemies.push(e);
   },
 
