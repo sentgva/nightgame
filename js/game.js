@@ -1576,6 +1576,13 @@ var Game = {
   },
 
   drawGrid: function (ctx, cell, W, H) {
+    // Грядки: через одну колонку фон чуть светлее. Полосы и делают поле
+    // «газоном», и помогают глазу держать колонку, по которой идёт враг.
+    ctx.save();
+    ctx.fillStyle = '#161D27';
+    for (var sc = 0; sc < Grid.cols; sc += 2) ctx.fillRect(sc * cell, 0, cell, H);
+    ctx.restore();
+
     ctx.save();
     ctx.strokeStyle = PAL.gridLine;
     ctx.lineWidth = 0.5;

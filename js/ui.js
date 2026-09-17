@@ -82,16 +82,39 @@ var UI = {
     var ctx = cv.getContext('2d');
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    // Луна
-    ctx.globalAlpha = 0.14;
+    // Звёзды вокруг
+    ctx.fillStyle = PAL.textMain;
+    var stars = [[22, 26, 1.6], [98, 34, 1.2], [30, 74, 1.1], [104, 72, 1.5], [70, 14, 1.2]];
+    for (var i = 0; i < stars.length; i++) {
+      ctx.globalAlpha = 0.25 + 0.2 * (i % 3);
+      Draw.circle(ctx, stars[i][0], stars[i][1], stars[i][2]);
+      ctx.fill();
+    }
+
+    // Луна: ореол, диск и вырезанный серп
+    ctx.globalAlpha = 0.12;
     ctx.fillStyle = PAL.spark;
-    Draw.circle(ctx, 60, 48, 34);
+    Draw.circle(ctx, 60, 52, 36);
     ctx.fill();
+
     ctx.globalAlpha = 1;
+    ctx.fillStyle = PAL.fillSpark;
+    Draw.circle(ctx, 60, 52, 27);
+    ctx.fill();
     ctx.strokeStyle = PAL.spark;
     ctx.lineWidth = 1.5;
-    Draw.circle(ctx, 60, 48, 26);
     ctx.stroke();
+
+    // Тень серпа
+    ctx.save();
+    Draw.circle(ctx, 60, 52, 27);
+    ctx.clip();
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = PAL.bgDeep;
+    Draw.circle(ctx, 76, 44, 25);
+    ctx.fill();
+    ctx.restore();
+    ctx.globalAlpha = 1;
 
   },
 
@@ -640,6 +663,7 @@ var UI = {
     var card = document.createElement('div');
     card.className = 'card';
     card.dataset.unit = typeId;
+    card.style.setProperty('--accent', def.color);
 
     var cv = document.createElement('canvas');
     var dpr = Math.min(window.devicePixelRatio || 1, 3);

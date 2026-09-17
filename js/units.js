@@ -231,6 +231,32 @@ var UNIT_ORDER = ['beacon', 'barrier', 'shooter', 'mine', 'freezer',
 var TIER_MUL = [1, 1, 1.5, 2.1];
 var TIER_COST = [0, 2, 3.5];      // во столько раз от базовой цены стоит переход
 
+/* Куда посадить глаза каждому защитнику: [расстояние между зрачками,
+   высота от центра, радиус] в долях клетки. Глаза — главное, что
+   превращает геометрию в персонажа, поэтому они есть у всех. */
+var UNIT_EYES = {
+  beacon:   [0.065, -0.205, 0.030],
+  shooter:  [0.075,  0.030, 0.034],
+  barrier:  [0.090,  0.010, 0.036],
+  freezer:  [0.070, -0.020, 0.032],
+  shotgun:  [0.080,  0.070, 0.034],
+  repeater: [0.085,  0.055, 0.032],
+  torch:    [0.065,  0.120, 0.030],
+  magnet:   [0.075, -0.115, 0.030],
+  fan:      [0.075,  0.090, 0.032],
+  repair:   [0.075, -0.055, 0.032],
+  mortar:   [0.080,  0.175, 0.030],
+  laser:    [0.060,  0.075, 0.030],
+  mine:     [0.045, -0.015, 0.026],
+  spikes:   [0.070,  0.150, 0.026],
+  chomper:  [0.070, -0.105, 0.030],
+  tesla:    [0.065,  0.075, 0.028],
+  harpoon:  [0.070,  0.135, 0.030],
+  umbrella: [0.070,  0.130, 0.030],
+  pendulum: [0.070,  0.070, 0.028],
+  net:      [0.070,  0.115, 0.030]
+};
+
 var Units = {
   /* Создание юнита на клетке */
   create: function (typeId, col, row) {
@@ -339,9 +365,21 @@ var Units = {
     var s = opts.scale === undefined ? 1 : opts.scale;
     var time = opts.time || 0;
 
+    // Подставка-тень: без неё юнит висит в воздухе
+    ctx.save();
+    ctx.globalAlpha = 0.45;
+    ctx.fillStyle = PAL.bgDeep;
+    ctx.beginPath();
+    ctx.ellipse(x, y + cell * 0.33 * s, cell * 0.25 * s, cell * 0.055 * s, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // Дыхание: юнит слегка сжимается и разжимается, как растение в PvZ
+    var breath = Math.sin(time * 1.7 + (typeId.length * 0.9)) * 0.022;
+
     ctx.save();
     ctx.translate(x, y);
-    ctx.scale(s, s);
+    ctx.scale(s * (1 - breath), s * (1 + breath));
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
 
@@ -350,6 +388,9 @@ var Units = {
 
     var shape = Units.shapes[typeId];
     shape(ctx, cell, k, t, opts, time);
+
+    // Глаза поверх корпуса — они и делают из фигуры персонажа
+    if (!opts.noEyes) Units.eyes(ctx, cell, k, typeId, opts, time);
 
     // Капкан с добычей во рту показывает, сколько ещё жевать
     if (opts.busy > 0 && opts.busyMax) {
@@ -434,6 +475,38 @@ var Units = {
       var by = y + cell * 0.33;
       Draw.bar(ctx, x - barW / 2, by, barW, barH, opts.hp / opts.maxHp, PAL.gridLine, t.color);
     }
+  },
+
+  /* Глаза: светлый белок и тёмный зрачок, который лениво косится в сторону.
+     Мигают редко и все вразнобой — иначе строй выглядит механическим. */
+  eyes: function (ctx, u, k, typeId, opts, time) {
+    var cfg = UNIT_EYES[typeId];
+    if (!cfg) return;
+    var gap = u * cfg[0], ey = u * cfg[1], r = u * cfg[2];
+    var seed = typeId.length * 1.7 + typeId.charCodeAt(0) * 0.11;
+
+    // Моргание: короткое закрытие раз в несколько секунд
+    var blink = Math.sin(time * 0.9 + seed);
+    var open = blink > 0.985 ? 0.12 : 1;
+
+    // Зрачки смотрят чуть в сторону и вверх — туда, откуда идут враги
+    var look = Math.sin(time * 0.6 + seed) * r * 0.30;
+
+    ctx.save();
+    if (opts.frozen || opts.stunned) ctx.globalAlpha *= 0.5;
+    for (var i = -1; i <= 1; i += 2) {
+      var ex = i * gap;
+      ctx.fillStyle = '#E8EDF2';
+      ctx.beginPath();
+      ctx.ellipse(ex, ey, r, r * open, 0, 0, Math.PI * 2);
+      ctx.fill();
+      if (open > 0.5) {
+        ctx.fillStyle = PAL.bgDeep;
+        Draw.circle(ctx, ex + look, ey - r * 0.12, r * 0.5);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
   },
 
   /* Постамент третьей ступени: кольцо под юнитом с четырьмя опорами */
