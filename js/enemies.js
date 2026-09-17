@@ -232,653 +232,579 @@ var Enemies = {
     }
   },
 
-  /* Корпус врага: тёмная заливка, обводка цветом линий сетки или льда */
-  shell: function (ctx, e, k, drawPath) {
-    ctx.fillStyle = e.hurt > 0 ? '#D8DEE6' : (e.armor > 0 ? PAL.fillArmor : PAL.fillEnemy);
-    ctx.strokeStyle = e.slowT > 0 ? PAL.ice : PAL.gridLine;
-    ctx.lineWidth = Math.max(1, k);
+  /* Корпус: яркая заливка с толстой тёмной обводкой */
+  shell: function (ctx, e, k, drawPath, fill) {
+    ctx.fillStyle = e.hurt > 0 ? '#FFFFFF' : (fill || PAL.zombieCloth);
+    ctx.strokeStyle = e.slowT > 0 ? '#0277BD' : PAL.outline;
+    ctx.lineWidth = Math.max(1.6, 2.4 * k);
+    ctx.lineJoin = 'round';
     drawPath();
     ctx.fill();
     ctx.stroke();
   },
 
-  /* Пара глаз — главный опознавательный признак */
-  eyes: function (ctx, u, k, e, gapFactor, ey, r) {
-    ctx.fillStyle = PAL.enemy;
-    var g = u * gapFactor;
-    Draw.circle(ctx, -g, ey, r); ctx.fill();
-    Draw.circle(ctx, g, ey, r); ctx.fill();
+  /* Голова зомби: кожа, белые глаза с тёмными зрачками и кривая ухмылка */
+  head: function (ctx, u, k, e, x, y, r, time, seed) {
+    var skin = e.hurt > 0 ? '#FFFFFF' : PAL.zombieSkin;
+    ctx.save();
+    ctx.fillStyle = skin;
+    ctx.strokeStyle = e.slowT > 0 ? '#0277BD' : PAL.outline;
+    ctx.lineWidth = Math.max(1.6, 2.2 * k);
+    Draw.smooth(ctx, [
+      [x, y - r], [x + r * 0.95, y - r * 0.35], [x + r * 0.85, y + r * 0.6],
+      [x - r * 0.1, y + r], [x - r * 0.9, y + r * 0.5], [x - r * 0.95, y - r * 0.4]
+    ]);
+    ctx.fill(); ctx.stroke();
+
+    // Глаза: один прищурен — лицо выходит несимметричным
+    var blink = Math.sin(time * 0.7 + (seed || 0)) > 0.96 ? 0.15 : 1;
+    var er = r * 0.26;
+    for (var i = -1; i <= 1; i += 2) {
+      var ex = x + i * r * 0.36, ey = y - r * 0.14;
+      ctx.fillStyle = '#FFFFFF';
+      ctx.lineWidth = Math.max(1.2, 1.6 * k);
+      ctx.beginPath();
+      ctx.ellipse(ex, ey, er, er * (i < 0 ? blink : blink * 0.82), 0, 0, Math.PI * 2);
+      ctx.fill(); ctx.stroke();
+      if (blink > 0.5) {
+        ctx.fillStyle = PAL.enemy;
+        Draw.circle(ctx, ex + er * 0.12, ey + er * 0.1, er * 0.46);
+        ctx.fill();
+      }
+    }
+
+    // Рот с торчащим зубом
+    ctx.strokeStyle = PAL.outline;
+    ctx.lineWidth = Math.max(1.2, 1.8 * k);
+    ctx.beginPath();
+    ctx.moveTo(x - r * 0.34, y + r * 0.44);
+    ctx.quadraticCurveTo(x, y + r * 0.62, x + r * 0.34, y + r * 0.40);
+    ctx.stroke();
+    ctx.fillStyle = '#FFFFFF';
+    Draw.poly(ctx, [
+      [x + r * 0.06, y + r * 0.46], [x + r * 0.24, y + r * 0.42], [x + r * 0.15, y + r * 0.66]
+    ]);
+    ctx.fill();
+    ctx.restore();
   },
 
-  /* Ноги в шаге: одна вперёд, другая назад. Без них враг не идёт, а едет. */
-  legs: function (ctx, u, k, gait, spread, top, len) {
+  /* Руки вытянуты вперёд — визитная карточка зомби */
+  arms: function (ctx, u, k, e, gait, y, reach) {
+    var skin = e.hurt > 0 ? '#FFFFFF' : PAL.zombieSkin;
     ctx.save();
-    ctx.strokeStyle = PAL.gridLine;
-    ctx.lineWidth = Math.max(1, 2.2 * k);
+    ctx.strokeStyle = PAL.outline;
+    ctx.lineWidth = Math.max(2.4, 4.2 * k);
     ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.moveTo(-spread, top);
-    ctx.lineTo(-spread + gait * u * 0.07, top + len);
-    ctx.moveTo(spread, top);
-    ctx.lineTo(spread - gait * u * 0.07, top + len);
+    ctx.moveTo(-u * 0.20, y); ctx.lineTo(-u * 0.24, y + reach + gait * u * 0.03);
+    ctx.moveTo(u * 0.20, y); ctx.lineTo(u * 0.24, y + reach - gait * u * 0.03);
+    ctx.stroke();
+    ctx.strokeStyle = skin;
+    ctx.lineWidth = Math.max(1.4, 2.4 * k);
     ctx.stroke();
     ctx.restore();
   },
 
-  /* Рука, тянущаяся вперёд — главный жест ходячего */
-  arm: function (ctx, u, k, gait, x, y, reach, curve) {
+  /* Ноги в шаге */
+  legs: function (ctx, u, k, e, gait, spread, top, len) {
     ctx.save();
-    ctx.strokeStyle = PAL.gridLine;
-    ctx.lineWidth = Math.max(1, 2 * k);
+    ctx.strokeStyle = PAL.outline;
+    ctx.lineWidth = Math.max(2.4, 4.4 * k);
     ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.moveTo(x, y);
-    ctx.quadraticCurveTo(x + curve, y + reach * 0.5, x + curve * 0.4, y + reach + gait * u * 0.04);
+    ctx.moveTo(-spread, top); ctx.lineTo(-spread + gait * u * 0.07, top + len);
+    ctx.moveTo(spread, top); ctx.lineTo(spread - gait * u * 0.07, top + len);
+    ctx.stroke();
+    ctx.strokeStyle = e.hurt > 0 ? '#FFFFFF' : PAL.zombieClothD;
+    ctx.lineWidth = Math.max(1.4, 2.6 * k);
     ctx.stroke();
     ctx.restore();
   },
 
-  mouth: function (ctx, u, k, w, my) {
-    ctx.save();
-    ctx.globalAlpha *= 0.5;
-    ctx.fillStyle = PAL.enemy;
-    ctx.fillRect(-w / 2, my, w, Math.max(1, k));
-    ctx.restore();
-  },
+  /* Прежние помощники остаются ради совместимости с механиками */
+  eyes: function () {},
+  mouth: function () {},
 
   shapes: {
-    /* Бродяга: сутулый, голова набок, одна рука тянется вперёд */
+    /* Бродяга: классический зомби в рваной рубахе */
     walker: function (ctx, u, k, e, time, gait) {
-      Enemies.legs(ctx, u, k, gait, u * 0.10, u * 0.14, u * 0.22);
-      Enemies.arm(ctx, u, k, gait, -u * 0.20, -u * 0.04, u * 0.26, -u * 0.12);
-
+      Enemies.legs(ctx, u, k, e, gait, u * 0.11, u * 0.16, u * 0.22);
+      Enemies.arms(ctx, u, k, e, gait, -u * 0.04, u * 0.30);
       Enemies.shell(ctx, e, k, function () {
         Draw.smooth(ctx, [
-          [-u * 0.10, -u * 0.30], [u * 0.16, -u * 0.24], [u * 0.24, -u * 0.02],
-          [u * 0.16, u * 0.18], [-u * 0.14, u * 0.20], [-u * 0.24, -u * 0.04]
+          [-u * 0.16, -u * 0.14], [u * 0.16, -u * 0.14], [u * 0.24, u * 0.02],
+          [u * 0.16, u * 0.20], [-u * 0.16, u * 0.20], [-u * 0.24, u * 0.02]
         ]);
       });
-
-      // Голова наклонена — плечи не симметричны, силуэт живой
+      // Прореха на рубахе
       ctx.save();
-      ctx.translate(-u * 0.03, -u * 0.26);
-      ctx.rotate(-0.18);
-      Enemies.shell(ctx, e, k, function () {
-        Draw.smooth(ctx, [
-          [0, -u * 0.16], [u * 0.15, -u * 0.06], [u * 0.12, u * 0.09],
-          [-u * 0.10, u * 0.10], [-u * 0.15, -u * 0.05]
-        ]);
-      });
-      Enemies.eyes(ctx, u, k, e, 0.065, -u * 0.02, 1.4 * k);
-      ctx.restore();
-
-      Enemies.mouth(ctx, u, k, u * 0.13, -u * 0.16);
-    },
-
-    /* Бегун: тощий, завален вперёд, ноги в длинном шаге */
-    runner: function (ctx, u, k, e, time, gait) {
-      ctx.rotate(0.22);
-      Enemies.legs(ctx, u, k, gait * 1.6, u * 0.07, u * 0.16, u * 0.26);
-
-      Enemies.shell(ctx, e, k, function () {
-        Draw.smooth(ctx, [
-          [0, -u * 0.30], [u * 0.14, -u * 0.18], [u * 0.12, u * 0.14],
-          [-u * 0.11, u * 0.16], [-u * 0.15, -u * 0.16]
-        ]);
-      });
-
-      // Руки отброшены назад
-      ctx.save();
-      ctx.strokeStyle = PAL.gridLine;
-      ctx.lineWidth = Math.max(1, 1.8 * k);
-      ctx.lineCap = 'round';
+      ctx.globalAlpha *= 0.5;
+      ctx.strokeStyle = PAL.outline;
+      ctx.lineWidth = Math.max(1, 1.4 * k);
       ctx.beginPath();
-      ctx.moveTo(-u * 0.12, -u * 0.10);
-      ctx.quadraticCurveTo(-u * 0.24, -u * 0.22, -u * 0.20, -u * 0.34);
-      ctx.moveTo(u * 0.12, -u * 0.08);
-      ctx.quadraticCurveTo(u * 0.24, -u * 0.20, u * 0.18, -u * 0.32);
+      ctx.moveTo(-u * 0.06, u * 0.00); ctx.lineTo(u * 0.02, u * 0.10); ctx.lineTo(-u * 0.02, u * 0.18);
       ctx.stroke();
       ctx.restore();
-
-      // Голова вытянута вперёд
-      ctx.save();
-      ctx.translate(u * 0.02, -u * 0.34);
-      Enemies.shell(ctx, e, k, function () {
-        Draw.smooth(ctx, [
-          [0, -u * 0.12], [u * 0.12, -u * 0.02], [u * 0.08, u * 0.09],
-          [-u * 0.08, u * 0.09], [-u * 0.12, -u * 0.02]
-        ]);
-      });
-      Enemies.eyes(ctx, u, k, e, 0.05, u * 0.00, 1.3 * k);
-      ctx.restore();
+      Enemies.head(ctx, u, k, e, -u * 0.02, -u * 0.30, u * 0.19, time, 1);
     },
 
-    /* Броненосец: грузное тело и конус на голове */
-    armored: function (ctx, u, k, e, time, gait) {
-      Enemies.legs(ctx, u, k, gait * 0.6, u * 0.13, u * 0.18, u * 0.18);
-      Enemies.arm(ctx, u, k, gait, -u * 0.26, -u * 0.02, u * 0.24, -u * 0.10);
-      Enemies.arm(ctx, u, k, -gait, u * 0.26, -u * 0.02, u * 0.24, u * 0.10);
-
+    /* Бегун: тощий, в наклоне, ноги в широком шаге */
+    runner: function (ctx, u, k, e, time, gait) {
+      ctx.rotate(0.24);
+      Enemies.legs(ctx, u, k, e, gait * 1.7, u * 0.08, u * 0.14, u * 0.26);
       Enemies.shell(ctx, e, k, function () {
         Draw.smooth(ctx, [
-          [-u * 0.06, -u * 0.26], [u * 0.24, -u * 0.18], [u * 0.30, u * 0.04],
-          [u * 0.18, u * 0.22], [-u * 0.18, u * 0.22], [-u * 0.30, u * 0.02],
-          [-u * 0.26, -u * 0.16]
+          [-u * 0.12, -u * 0.16], [u * 0.12, -u * 0.16], [u * 0.16, u * 0.02],
+          [u * 0.10, u * 0.18], [-u * 0.10, u * 0.18], [-u * 0.16, u * 0.02]
+        ]);
+      }, '#7E57C2');
+      // Руки отброшены назад
+      ctx.save();
+      ctx.strokeStyle = PAL.outline;
+      ctx.lineWidth = Math.max(2, 3.6 * k);
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(-u * 0.14, -u * 0.08); ctx.lineTo(-u * 0.26, -u * 0.30);
+      ctx.moveTo(u * 0.14, -u * 0.08); ctx.lineTo(u * 0.24, -u * 0.28);
+      ctx.stroke();
+      ctx.strokeStyle = e.hurt > 0 ? '#FFFFFF' : PAL.zombieSkin;
+      ctx.lineWidth = Math.max(1.2, 2 * k);
+      ctx.stroke();
+      ctx.restore();
+      Enemies.head(ctx, u, k, e, u * 0.02, -u * 0.32, u * 0.16, time, 2);
+    },
+
+    /* Броненосец: зомби в дорожном конусе */
+    armored: function (ctx, u, k, e, time, gait) {
+      Enemies.legs(ctx, u, k, e, gait * 0.7, u * 0.13, u * 0.18, u * 0.18);
+      Enemies.arms(ctx, u, k, e, gait, -u * 0.02, u * 0.30);
+      Enemies.shell(ctx, e, k, function () {
+        Draw.smooth(ctx, [
+          [-u * 0.20, -u * 0.12], [u * 0.20, -u * 0.12], [u * 0.28, u * 0.04],
+          [u * 0.18, u * 0.22], [-u * 0.18, u * 0.22], [-u * 0.28, u * 0.04]
         ]);
       });
-
-      Enemies.eyes(ctx, u, k, e, 0.085, -u * 0.06, 1.5 * k);
-      Enemies.mouth(ctx, u, k, u * 0.20, u * 0.08);
+      Enemies.head(ctx, u, k, e, 0, -u * 0.28, u * 0.19, time, 3);
 
       if (e.armor > 0) {
-        // Конус: пока цел — глаза прячутся под кромкой
         ctx.save();
-        ctx.fillStyle = '#39434F';
-        ctx.strokeStyle = '#5A6573';
-        ctx.lineWidth = Math.max(1, k);
-        Draw.poly(ctx, [
-          [-u * 0.02, -u * 0.52], [u * 0.22, -u * 0.14], [-u * 0.26, -u * 0.14]
-        ]);
+        ctx.fillStyle = '#FF7043';
+        ctx.strokeStyle = PAL.outline;
+        ctx.lineWidth = Math.max(1.6, 2.4 * k);
+        Draw.poly(ctx, [[0, -u * 0.62], [u * 0.20, -u * 0.30], [-u * 0.20, -u * 0.30]]);
         ctx.fill(); ctx.stroke();
-        ctx.globalAlpha *= 0.5;
-        ctx.beginPath();
-        ctx.moveTo(-u * 0.16, -u * 0.26); ctx.lineTo(u * 0.12, -u * 0.26);
-        ctx.stroke();
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(-u * 0.13, -u * 0.44, u * 0.26, u * 0.05);
         ctx.restore();
       }
     },
 
-    /* Прыгун: поджатая туша на мощных согнутых ногах */
+    /* Прыгун: зомби на пружинящих согнутых ногах */
     jumper: function (ctx, u, k, e, time, gait) {
       var crouch = e.jumpT > 0;
-
-      // Ноги-пружины
       ctx.save();
-      ctx.strokeStyle = PAL.gridLine;
-      ctx.lineWidth = Math.max(1, 2.6 * k);
+      ctx.strokeStyle = PAL.outline;
+      ctx.lineWidth = Math.max(2.4, 4.6 * k);
       ctx.lineCap = 'round';
       ctx.beginPath();
       if (crouch) {
-        ctx.moveTo(-u * 0.12, u * 0.10);
-        ctx.quadraticCurveTo(-u * 0.24, u * 0.16, -u * 0.16, u * 0.22);
-        ctx.moveTo(u * 0.12, u * 0.10);
-        ctx.quadraticCurveTo(u * 0.24, u * 0.16, u * 0.16, u * 0.22);
+        ctx.moveTo(-u * 0.12, u * 0.10); ctx.quadraticCurveTo(-u * 0.26, u * 0.16, -u * 0.16, u * 0.24);
+        ctx.moveTo(u * 0.12, u * 0.10); ctx.quadraticCurveTo(u * 0.26, u * 0.16, u * 0.16, u * 0.24);
       } else {
-        ctx.moveTo(-u * 0.12, u * 0.08);
-        ctx.quadraticCurveTo(-u * 0.26, u * 0.20, -u * 0.14 + gait * u * 0.05, u * 0.34);
-        ctx.moveTo(u * 0.12, u * 0.08);
-        ctx.quadraticCurveTo(u * 0.26, u * 0.20, u * 0.14 - gait * u * 0.05, u * 0.34);
+        ctx.moveTo(-u * 0.12, u * 0.08); ctx.quadraticCurveTo(-u * 0.26, u * 0.22, -u * 0.14 + gait * u * 0.05, u * 0.34);
+        ctx.moveTo(u * 0.12, u * 0.08); ctx.quadraticCurveTo(u * 0.26, u * 0.22, u * 0.14 - gait * u * 0.05, u * 0.34);
       }
       ctx.stroke();
-      ctx.restore();
-
-      Enemies.shell(ctx, e, k, function () {
-        Draw.smooth(ctx, [
-          [0, -u * 0.30], [u * 0.22, -u * 0.14], [u * 0.18, u * 0.10],
-          [-u * 0.18, u * 0.12], [-u * 0.22, -u * 0.12]
-        ]);
-      });
-
-      // Гребень
-      ctx.save();
-      ctx.globalAlpha *= 0.55;
-      ctx.strokeStyle = PAL.enemy;
-      ctx.lineWidth = Math.max(1, 1.4 * k);
-      ctx.beginPath();
-      ctx.moveTo(-u * 0.05, -u * 0.30);
-      ctx.quadraticCurveTo(0, -u * 0.44, u * 0.06, -u * 0.32);
+      ctx.strokeStyle = e.hurt > 0 ? '#FFFFFF' : '#00897B';
+      ctx.lineWidth = Math.max(1.4, 2.8 * k);
       ctx.stroke();
       ctx.restore();
 
-      Enemies.eyes(ctx, u, k, e, 0.085, -u * 0.12, 1.4 * k);
-      Enemies.mouth(ctx, u, k, u * 0.15, u * 0.00);
+      Enemies.arms(ctx, u, k, e, gait, -u * 0.08, u * 0.24);
+      Enemies.shell(ctx, e, k, function () {
+        Draw.smooth(ctx, [
+          [-u * 0.16, -u * 0.16], [u * 0.16, -u * 0.16], [u * 0.22, u * 0.00],
+          [u * 0.14, u * 0.14], [-u * 0.14, u * 0.14], [-u * 0.22, u * 0.00]
+        ]);
+      }, '#26A69A');
+      Enemies.head(ctx, u, k, e, 0, -u * 0.32, u * 0.17, time, 4);
     },
 
-    /* Плевун: раздутое брюхо и длинное отвисшее рыло */
+    /* Плевун: пузатый зомби с раздутой щекой */
     spitter: function (ctx, u, k, e, time, gait) {
-      Enemies.legs(ctx, u, k, gait * 0.7, u * 0.11, u * 0.16, u * 0.18);
-
+      Enemies.legs(ctx, u, k, e, gait * 0.7, u * 0.12, u * 0.18, u * 0.18);
+      Enemies.arms(ctx, u, k, e, gait, u * 0.00, u * 0.26);
       Enemies.shell(ctx, e, k, function () {
         Draw.smooth(ctx, [
-          [-u * 0.04, -u * 0.26], [u * 0.20, -u * 0.12], [u * 0.26, u * 0.10],
-          [0, u * 0.22], [-u * 0.26, u * 0.08], [-u * 0.22, -u * 0.12]
+          [-u * 0.18, -u * 0.12], [u * 0.18, -u * 0.12], [u * 0.28, u * 0.06],
+          [0, u * 0.24], [-u * 0.28, u * 0.06]
         ]);
-      });
+      }, '#8D6E63');
+      Enemies.head(ctx, u, k, e, -u * 0.02, -u * 0.30, u * 0.19, time, 5);
 
-      // Рыло свисает вперёд
+      // Раздутая щека
       ctx.save();
-      ctx.translate(u * 0.02, u * 0.06);
-      ctx.rotate(0.25);
-      Enemies.shell(ctx, e, k, function () {
-        Draw.smooth(ctx, [
-          [-u * 0.07, 0], [u * 0.07, 0], [u * 0.05, u * 0.22], [-u * 0.05, u * 0.22]
-        ]);
-      });
-      if (e.attacking > 0) {
-        ctx.save();
-        ctx.globalAlpha *= Math.min(1, e.attacking);
-        ctx.fillStyle = PAL.enemy;
-        Draw.circle(ctx, 0, u * 0.24, u * 0.055);
-        ctx.fill();
-        ctx.restore();
-      }
+      ctx.fillStyle = e.hurt > 0 ? '#FFFFFF' : '#9CCC65';
+      ctx.strokeStyle = PAL.outline;
+      ctx.lineWidth = Math.max(1.4, 2 * k);
+      Draw.circle(ctx, u * 0.18, -u * 0.24, u * 0.09 * (e.attacking > 0 ? 1.3 : 1));
+      ctx.fill(); ctx.stroke();
       ctx.restore();
-
-      Enemies.eyes(ctx, u, k, e, 0.10, -u * 0.14, 1.4 * k);
     },
 
-    /* Фантом: плечи есть, ног нет — снизу дымный хвост */
+    /* Фантом: полупрозрачный зомби без ног, снизу дымный хвост */
     phantom: function (ctx, u, k, e, time, gait) {
-      if (e.phased) ctx.globalAlpha *= 0.26;
-
-      // Хвост
+      if (e.phased) ctx.globalAlpha *= 0.3;
       ctx.save();
-      ctx.globalAlpha *= 0.45;
-      ctx.fillStyle = PAL.fillEnemy;
+      ctx.globalAlpha *= 0.5;
+      ctx.fillStyle = PAL.phase;
       Draw.smooth(ctx, [
-        [-u * 0.14, u * 0.06], [u * 0.14, u * 0.06],
-        [u * 0.06 + Math.sin(time * 2) * u * 0.05, u * 0.34],
-        [-u * 0.06 + Math.sin(time * 2) * u * 0.05, u * 0.34]
+        [-u * 0.15, u * 0.06], [u * 0.15, u * 0.06],
+        [u * 0.07 + Math.sin(time * 2) * u * 0.05, u * 0.34],
+        [-u * 0.07 + Math.sin(time * 2) * u * 0.05, u * 0.34]
       ]);
       ctx.fill();
       ctx.restore();
 
+      Enemies.arms(ctx, u, k, e, gait, -u * 0.08, u * 0.22);
       Enemies.shell(ctx, e, k, function () {
         Draw.smooth(ctx, [
-          [0, -u * 0.32], [u * 0.24, -u * 0.12], [u * 0.16, u * 0.10],
-          [-u * 0.16, u * 0.10], [-u * 0.24, -u * 0.12]
+          [-u * 0.17, -u * 0.16], [u * 0.17, -u * 0.16], [u * 0.22, u * 0.02],
+          [0, u * 0.14], [-u * 0.22, u * 0.02]
         ]);
-      });
-
-      // Руки-лохмотья
-      ctx.save();
-      ctx.globalAlpha *= 0.5;
-      ctx.strokeStyle = PAL.phase;
-      ctx.lineWidth = Math.max(1, 1.4 * k);
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(-u * 0.22, -u * 0.06);
-      ctx.quadraticCurveTo(-u * 0.32, u * 0.06, -u * 0.26, u * 0.18);
-      ctx.moveTo(u * 0.22, -u * 0.06);
-      ctx.quadraticCurveTo(u * 0.32, u * 0.06, u * 0.26, u * 0.18);
-      ctx.stroke();
-      ctx.restore();
-
-      Enemies.eyes(ctx, u, k, e, 0.075, -u * 0.14, 1.4 * k);
+      }, '#78909C');
+      Enemies.head(ctx, u, k, e, 0, -u * 0.32, u * 0.17, time, 6);
 
       if (e.phased) {
         ctx.save();
-        ctx.globalAlpha = 0.8;
+        ctx.globalAlpha = 0.85;
         ctx.strokeStyle = PAL.phase;
-        ctx.lineWidth = Math.max(1, 1.3 * k);
-        Draw.circle(ctx, 0, -u * 0.06, u * 0.30);
+        ctx.lineWidth = Math.max(1.4, 2 * k);
+        Draw.circle(ctx, 0, -u * 0.08, u * 0.34);
         ctx.stroke();
         ctx.restore();
       }
     },
 
-    /* Пепельник: круглая растрескавшаяся туша, швы дышат жаром */
+    /* Пепельник: обугленный зомби, по телу бегут раскалённые трещины */
     burster: function (ctx, u, k, e, time, gait) {
-      Enemies.legs(ctx, u, k, gait, u * 0.09, u * 0.18, u * 0.16);
-
+      Enemies.legs(ctx, u, k, e, gait, u * 0.10, u * 0.18, u * 0.16);
+      Enemies.arms(ctx, u, k, e, gait, -u * 0.04, u * 0.26);
       Enemies.shell(ctx, e, k, function () {
         Draw.smooth(ctx, [
-          [0, -u * 0.30], [u * 0.24, -u * 0.16], [u * 0.26, u * 0.08],
-          [u * 0.04, u * 0.22], [-u * 0.24, u * 0.10], [-u * 0.26, -u * 0.14]
+          [0, -u * 0.20], [u * 0.24, -u * 0.06], [u * 0.24, u * 0.10],
+          [0, u * 0.24], [-u * 0.24, u * 0.10], [-u * 0.24, -u * 0.06]
         ]);
-      });
-
+      }, '#5D4037');
       ctx.save();
-      ctx.globalAlpha *= 0.35 + 0.4 * (0.5 + 0.5 * Math.sin(time * 4 + e.wobble));
+      ctx.globalAlpha *= 0.5 + 0.4 * (0.5 + 0.5 * Math.sin(time * 4 + e.wobble));
       ctx.strokeStyle = PAL.ash;
-      ctx.lineWidth = Math.max(1, 1.4 * k);
+      ctx.lineWidth = Math.max(1.4, 2 * k);
       ctx.beginPath();
-      ctx.moveTo(-u * 0.20, -u * 0.08);
-      ctx.quadraticCurveTo(-u * 0.04, u * 0.00, -u * 0.10, u * 0.18);
-      ctx.moveTo(u * 0.20, -u * 0.04);
-      ctx.quadraticCurveTo(u * 0.06, u * 0.06, u * 0.12, u * 0.18);
-      ctx.moveTo(-u * 0.06, -u * 0.26); ctx.lineTo(u * 0.02, -u * 0.12);
+      ctx.moveTo(-u * 0.18, -u * 0.06);
+      ctx.quadraticCurveTo(-u * 0.02, u * 0.02, -u * 0.08, u * 0.18);
+      ctx.moveTo(u * 0.18, -u * 0.02);
+      ctx.quadraticCurveTo(u * 0.04, u * 0.08, u * 0.10, u * 0.20);
       ctx.stroke();
       ctx.restore();
-
-      Enemies.eyes(ctx, u, k, e, 0.09, -u * 0.14, 1.4 * k);
+      Enemies.head(ctx, u, k, e, 0, -u * 0.34, u * 0.17, time, 7);
     },
 
-    /* Рой: два сросшихся кома на частоколе мелких ног */
+    /* Рой: двухголовый зомби — при смерти и разваливается надвое */
     swarm: function (ctx, u, k, e, time, gait) {
-      ctx.save();
-      ctx.strokeStyle = PAL.gridLine;
-      ctx.lineWidth = Math.max(1, 1.6 * k);
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      for (var i = -2; i <= 2; i++) {
-        var x = i * u * 0.10;
-        ctx.moveTo(x, u * 0.16);
-        ctx.lineTo(x + gait * u * 0.04 * (i % 2 ? 1 : -1), u * 0.30);
-      }
-      ctx.stroke();
-      ctx.restore();
-
+      Enemies.legs(ctx, u, k, e, gait, u * 0.15, u * 0.16, u * 0.20);
+      Enemies.arms(ctx, u, k, e, gait, -u * 0.02, u * 0.28);
       Enemies.shell(ctx, e, k, function () {
         Draw.smooth(ctx, [
-          [-u * 0.14, -u * 0.26], [u * 0.14, -u * 0.26], [u * 0.30, -u * 0.06],
-          [u * 0.18, u * 0.18], [-u * 0.18, u * 0.18], [-u * 0.30, -u * 0.06]
+          [-u * 0.26, -u * 0.12], [u * 0.26, -u * 0.12], [u * 0.32, u * 0.04],
+          [u * 0.18, u * 0.20], [-u * 0.18, u * 0.20], [-u * 0.32, u * 0.04]
         ]);
-      });
-
-      // Два ядра просвечивают
-      ctx.save();
-      ctx.globalAlpha *= 0.45;
-      ctx.strokeStyle = PAL.enemy;
-      ctx.lineWidth = Math.max(1, k);
-      Draw.circle(ctx, -u * 0.12, -u * 0.02, u * 0.13); ctx.stroke();
-      Draw.circle(ctx, u * 0.12, -u * 0.02, u * 0.13); ctx.stroke();
-      ctx.restore();
-
-      Enemies.eyes(ctx, u, k, e, 0.12, -u * 0.08, 1.3 * k);
+      }, '#6D4C41');
+      Enemies.head(ctx, u, k, e, -u * 0.15, -u * 0.28, u * 0.15, time, 8);
+      Enemies.head(ctx, u, k, e, u * 0.15, -u * 0.26, u * 0.15, time, 9);
     },
 
-    /* Лекарь: высокий, в балахоне, с посохом и нимбом */
+    /* Лекарь: зомби-знахарь в балахоне с посохом */
     healer: function (ctx, u, k, e, time, gait) {
       var pulse = 0.5 + 0.5 * Math.sin(time * 3 + e.wobble);
-
-      // Посох
       ctx.save();
-      ctx.globalAlpha *= 0.7;
-      ctx.strokeStyle = PAL.heal;
-      ctx.lineWidth = Math.max(1, 1.8 * k);
+      ctx.strokeStyle = PAL.outline;
+      ctx.lineWidth = Math.max(2, 3.4 * k);
       ctx.lineCap = 'round';
       ctx.beginPath();
-      ctx.moveTo(u * 0.26, -u * 0.30); ctx.lineTo(u * 0.22, u * 0.30);
+      ctx.moveTo(u * 0.26, -u * 0.32); ctx.lineTo(u * 0.22, u * 0.30);
+      ctx.stroke();
+      ctx.strokeStyle = '#8D6E63';
+      ctx.lineWidth = Math.max(1.4, 2 * k);
       ctx.stroke();
       ctx.fillStyle = PAL.heal;
-      ctx.globalAlpha *= 0.4 + 0.5 * pulse;
-      Draw.circle(ctx, u * 0.26, -u * 0.32, u * 0.05); ctx.fill();
+      ctx.globalAlpha *= 0.5 + 0.5 * pulse;
+      Draw.circle(ctx, u * 0.26, -u * 0.34, u * 0.07); ctx.fill();
       ctx.restore();
 
-      // Нимб
-      ctx.save();
-      ctx.globalAlpha *= 0.22 + 0.28 * pulse;
-      ctx.strokeStyle = PAL.heal;
-      ctx.lineWidth = Math.max(1, 1.6 * k);
-      ctx.beginPath();
-      ctx.ellipse(-u * 0.04, -u * 0.40, u * 0.15, u * 0.05, 0, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.restore();
-
-      // Балахон книзу расширяется
+      Enemies.legs(ctx, u, k, e, gait * 0.6, u * 0.08, u * 0.20, u * 0.14);
       Enemies.shell(ctx, e, k, function () {
         Draw.smooth(ctx, [
-          [-u * 0.04, -u * 0.32], [u * 0.14, -u * 0.20], [u * 0.22, u * 0.18],
-          [0, u * 0.28], [-u * 0.22, u * 0.18], [-u * 0.14, -u * 0.20]
+          [-u * 0.10, -u * 0.20], [u * 0.10, -u * 0.20], [u * 0.24, u * 0.14],
+          [0, u * 0.26], [-u * 0.24, u * 0.14]
         ]);
-      });
+      }, PAL.heal);
+      Enemies.head(ctx, u, k, e, -u * 0.02, -u * 0.34, u * 0.16, time, 10);
 
       ctx.save();
-      ctx.globalAlpha *= 0.6;
+      ctx.globalAlpha *= 0.25 + 0.3 * pulse;
       ctx.strokeStyle = PAL.heal;
-      ctx.lineWidth = Math.max(1, 1.3 * k);
+      ctx.lineWidth = Math.max(1.4, 2 * k);
       ctx.beginPath();
-      ctx.moveTo(-u * 0.04, u * 0.00); ctx.lineTo(-u * 0.04, u * 0.16);
-      ctx.moveTo(-u * 0.12, u * 0.08); ctx.lineTo(u * 0.04, u * 0.08);
+      ctx.ellipse(-u * 0.02, -u * 0.52, u * 0.16, u * 0.05, 0, 0, Math.PI * 2);
       ctx.stroke();
       ctx.restore();
-
-      Enemies.eyes(ctx, u, k, e, 0.06, -u * 0.22, 1.3 * k);
     },
 
-    /* Носитель: горбатая туша с коконом на спине */
+    /* Носитель: зомби с коконом-рюкзаком за спиной */
     carrier: function (ctx, u, k, e, time, gait) {
-      Enemies.legs(ctx, u, k, gait * 0.6, u * 0.14, u * 0.18, u * 0.18);
-
-      // Кокон за спиной
+      Enemies.legs(ctx, u, k, e, gait * 0.6, u * 0.14, u * 0.18, u * 0.18);
       ctx.save();
-      ctx.globalAlpha *= 0.9;
-      ctx.fillStyle = PAL.fillArmor;
-      ctx.strokeStyle = PAL.gridLine;
-      ctx.lineWidth = Math.max(1, k);
+      ctx.fillStyle = e.hurt > 0 ? '#FFFFFF' : '#795548';
+      ctx.strokeStyle = PAL.outline;
+      ctx.lineWidth = Math.max(1.6, 2.4 * k);
       Draw.smooth(ctx, [
-        [0, -u * 0.40], [u * 0.22, -u * 0.26], [u * 0.18, -u * 0.02],
-        [-u * 0.18, -u * 0.02], [-u * 0.22, -u * 0.26]
+        [0, -u * 0.40], [u * 0.24, -u * 0.26], [u * 0.20, u * 0.00],
+        [-u * 0.20, u * 0.00], [-u * 0.24, -u * 0.26]
       ]);
       ctx.fill(); ctx.stroke();
-      ctx.fillStyle = PAL.enemy;
-      ctx.globalAlpha *= 0.55;
+      ctx.fillStyle = '#AED581';
       for (var i = -1; i <= 1; i++) {
-        Draw.circle(ctx, i * u * 0.10, -u * 0.20 + Math.sin(time * 3 + i) * u * 0.015, u * 0.032);
-        ctx.fill();
+        Draw.circle(ctx, i * u * 0.10, -u * 0.20 + Math.sin(time * 3 + i) * u * 0.015, u * 0.04);
+        ctx.fill(); ctx.stroke();
       }
       ctx.restore();
 
+      Enemies.arms(ctx, u, k, e, gait, u * 0.02, u * 0.26);
       Enemies.shell(ctx, e, k, function () {
         Draw.smooth(ctx, [
-          [-u * 0.10, -u * 0.14], [u * 0.20, -u * 0.08], [u * 0.28, u * 0.08],
-          [0, u * 0.22], [-u * 0.28, u * 0.08], [-u * 0.22, -u * 0.06]
+          [-u * 0.20, -u * 0.04], [u * 0.20, -u * 0.04], [u * 0.28, u * 0.08],
+          [0, u * 0.24], [-u * 0.28, u * 0.08]
         ]);
       });
-
-      Enemies.eyes(ctx, u, k, e, 0.11, u * 0.02, 1.5 * k);
+      Enemies.head(ctx, u, k, e, 0, -u * 0.16, u * 0.16, time, 11);
     },
 
-    /* Ревун: вместо головы раструб, руки закинуты назад */
+    /* Ревун: зомби с рупором вместо головы */
     howler: function (ctx, u, k, e, time, gait) {
       var ring = (time * 0.8) % 1;
       ctx.save();
-      ctx.globalAlpha *= 0.30 * (1 - ring);
+      ctx.globalAlpha *= 0.35 * (1 - ring);
       ctx.strokeStyle = PAL.aura;
-      ctx.lineWidth = Math.max(1, 1.4 * k);
-      Draw.circle(ctx, 0, -u * 0.10, u * 0.28 + ring * u * 0.32);
+      ctx.lineWidth = Math.max(1.6, 2.4 * k);
+      Draw.circle(ctx, 0, -u * 0.10, u * 0.30 + ring * u * 0.34);
       ctx.stroke();
       ctx.restore();
 
-      Enemies.legs(ctx, u, k, gait, u * 0.10, u * 0.16, u * 0.20);
-
+      Enemies.legs(ctx, u, k, e, gait, u * 0.10, u * 0.16, u * 0.20);
+      Enemies.arms(ctx, u, k, e, gait, -u * 0.02, u * 0.26);
       Enemies.shell(ctx, e, k, function () {
         Draw.smooth(ctx, [
-          [-u * 0.08, -u * 0.18], [u * 0.18, -u * 0.10], [u * 0.22, u * 0.10],
-          [-u * 0.20, u * 0.14], [-u * 0.22, -u * 0.06]
+          [-u * 0.17, -u * 0.12], [u * 0.17, -u * 0.12], [u * 0.24, u * 0.02],
+          [u * 0.14, u * 0.20], [-u * 0.14, u * 0.20], [-u * 0.24, u * 0.02]
         ]);
-      });
+      }, '#FFB300');
+      Enemies.head(ctx, u, k, e, 0, -u * 0.28, u * 0.16, time, 12);
 
-      // Раструб
+      // Рупор
       ctx.save();
-      ctx.fillStyle = e.hurt > 0 ? '#D8DEE6' : PAL.fillEnemy;
-      ctx.strokeStyle = PAL.aura;
-      ctx.lineWidth = Math.max(1, 1.3 * k);
+      ctx.fillStyle = e.hurt > 0 ? '#FFFFFF' : '#FFD54F';
+      ctx.strokeStyle = PAL.outline;
+      ctx.lineWidth = Math.max(1.6, 2.2 * k);
       Draw.smooth(ctx, [
-        [-u * 0.06, -u * 0.20], [u * 0.06, -u * 0.20],
-        [u * 0.24, -u * 0.44], [-u * 0.24, -u * 0.44]
+        [-u * 0.07, -u * 0.38], [u * 0.07, -u * 0.38],
+        [u * 0.26, -u * 0.60], [-u * 0.26, -u * 0.60]
       ]);
       ctx.fill(); ctx.stroke();
       ctx.restore();
-
-      Enemies.eyes(ctx, u, k, e, 0.065, -u * 0.06, 1.3 * k);
     },
 
-    /* Щитоносец: тащит перед собой створку размером с себя */
+    /* Щитоносец: зомби тащит перед собой дверь */
     shielder: function (ctx, u, k, e, time, gait) {
-      Enemies.legs(ctx, u, k, gait * 0.5, u * 0.12, u * 0.18, u * 0.16);
-
+      Enemies.legs(ctx, u, k, e, gait * 0.5, u * 0.12, u * 0.18, u * 0.16);
       Enemies.shell(ctx, e, k, function () {
         Draw.smooth(ctx, [
-          [0, -u * 0.30], [u * 0.20, -u * 0.16], [u * 0.22, u * 0.08],
-          [-u * 0.22, u * 0.10], [-u * 0.20, -u * 0.16]
+          [-u * 0.17, -u * 0.12], [u * 0.17, -u * 0.12], [u * 0.22, u * 0.04],
+          [u * 0.14, u * 0.18], [-u * 0.14, u * 0.18], [-u * 0.22, u * 0.04]
         ]);
       });
-      Enemies.eyes(ctx, u, k, e, 0.085, -u * 0.16, 1.4 * k);
+      Enemies.head(ctx, u, k, e, 0, -u * 0.30, u * 0.17, time, 13);
 
-      // Створка
+      // Дверь
       ctx.save();
-      ctx.globalAlpha *= 0.95;
-      ctx.fillStyle = '#26323F';
-      ctx.strokeStyle = PAL.shield;
-      ctx.lineWidth = Math.max(1, 1.3 * k);
-      Draw.smooth(ctx, [
-        [-u * 0.34, -u * 0.04], [u * 0.34, -u * 0.06],
-        [u * 0.28, u * 0.32], [-u * 0.28, u * 0.30]
-      ]);
+      ctx.fillStyle = e.hurt > 0 ? '#FFFFFF' : '#8D6E63';
+      ctx.strokeStyle = PAL.outline;
+      ctx.lineWidth = Math.max(1.8, 2.6 * k);
+      Draw.roundRect(ctx, -u * 0.32, -u * 0.06, u * 0.64, u * 0.38, u * 0.04);
       ctx.fill(); ctx.stroke();
-      ctx.globalAlpha *= 0.45;
+      ctx.globalAlpha *= 0.4;
       ctx.beginPath();
-      ctx.moveTo(0, u * 0.00); ctx.lineTo(0, u * 0.30);
-      ctx.moveTo(-u * 0.30, u * 0.14); ctx.lineTo(u * 0.30, u * 0.13);
+      ctx.moveTo(-u * 0.20, -u * 0.02); ctx.lineTo(-u * 0.20, u * 0.28);
+      ctx.moveTo(u * 0.20, -u * 0.02); ctx.lineTo(u * 0.20, u * 0.28);
       ctx.stroke();
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = '#FFD54F';
+      Draw.circle(ctx, u * 0.24, u * 0.14, u * 0.035);
+      ctx.fill(); ctx.stroke();
       ctx.restore();
     },
 
-    /* Пожиратель: почти вся туша — пасть */
+    /* Пожиратель: зомби, у которого почти вся голова — челюсть */
     devourer: function (ctx, u, k, e, time, gait) {
-      var bite = e.devourLeft > 0 ? 0.5 + 0.5 * Math.sin(time * 4 + e.wobble) : 0.15;
-      Enemies.legs(ctx, u, k, gait, u * 0.10, u * 0.18, u * 0.18);
-
+      var bite = e.devourLeft > 0 ? 0.5 + 0.5 * Math.sin(time * 4 + e.wobble) : 0.2;
+      Enemies.legs(ctx, u, k, e, gait, u * 0.11, u * 0.18, u * 0.18);
+      Enemies.arms(ctx, u, k, e, gait, -u * 0.02, u * 0.28);
       Enemies.shell(ctx, e, k, function () {
         Draw.smooth(ctx, [
-          [0, -u * 0.30], [u * 0.28, -u * 0.12], [u * 0.24, u * 0.12],
-          [0, u * 0.22], [-u * 0.24, u * 0.12], [-u * 0.28, -u * 0.12]
+          [-u * 0.18, -u * 0.10], [u * 0.18, -u * 0.10], [u * 0.26, u * 0.06],
+          [0, u * 0.22], [-u * 0.26, u * 0.06]
         ]);
-      });
+      }, '#4E342E');
 
-      // Пасть поперёк всего тела
+      // Голова-пасть
       ctx.save();
-      ctx.fillStyle = PAL.bgDeep;
+      ctx.fillStyle = e.hurt > 0 ? '#FFFFFF' : PAL.zombieSkin;
+      ctx.strokeStyle = PAL.outline;
+      ctx.lineWidth = Math.max(1.8, 2.6 * k);
       Draw.smooth(ctx, [
-        [-u * 0.22, u * 0.02], [0, -u * 0.02], [u * 0.22, u * 0.02],
-        [u * 0.14, u * 0.18], [-u * 0.14, u * 0.18]
+        [0, -u * 0.50], [u * 0.26, -u * 0.36], [u * 0.24, -u * 0.12],
+        [-u * 0.24, -u * 0.12], [-u * 0.26, -u * 0.36]
+      ]);
+      ctx.fill(); ctx.stroke();
+
+      ctx.fillStyle = PAL.outline;
+      Draw.smooth(ctx, [
+        [-u * 0.20, -u * 0.26], [0, -u * 0.30], [u * 0.20, -u * 0.26],
+        [u * 0.14, -u * 0.12], [-u * 0.14, -u * 0.12]
       ]);
       ctx.fill();
-      ctx.fillStyle = '#D8DEE6';
-      ctx.globalAlpha *= 0.85;
+      ctx.fillStyle = '#FFFFFF';
       for (var i = 0; i < 4; i++) {
-        var x = -u * 0.16 + i * u * 0.105;
-        var h = u * (0.05 + 0.035 * bite);
-        Draw.poly(ctx, [[x - u * 0.04, u * 0.01], [x + u * 0.04, u * 0.01], [x, u * 0.01 + h]]);
+        var x = -u * 0.15 + i * u * 0.10;
+        var h = u * (0.04 + 0.03 * bite);
+        Draw.poly(ctx, [[x - u * 0.035, -u * 0.27], [x + u * 0.035, -u * 0.27], [x, -u * 0.27 + h]]);
         ctx.fill();
-        Draw.poly(ctx, [[x - u * 0.04, u * 0.17], [x + u * 0.04, u * 0.17], [x, u * 0.17 - h]]);
+        Draw.poly(ctx, [[x - u * 0.035, -u * 0.13], [x + u * 0.035, -u * 0.13], [x, -u * 0.13 - h]]);
+        ctx.fill();
+      }
+      // Глаза над пастью
+      for (var j = -1; j <= 1; j += 2) {
+        ctx.fillStyle = '#FFFFFF';
+        ctx.strokeStyle = PAL.outline;
+        ctx.lineWidth = Math.max(1.2, 1.6 * k);
+        Draw.circle(ctx, j * u * 0.12, -u * 0.40, u * 0.05);
+        ctx.fill(); ctx.stroke();
+        ctx.fillStyle = PAL.enemy;
+        Draw.circle(ctx, j * u * 0.12, -u * 0.40, u * 0.022);
         ctx.fill();
       }
       ctx.restore();
-
-      Enemies.eyes(ctx, u, k, e, 0.15, -u * 0.18, 1.5 * k);
     },
 
-    /* Колосс: гора с узкой головой, вросшей в плечи */
+    /* Колосс: громила с бревном на плече */
     boss: function (ctx, u, k, e, time, gait) {
-      // Ноги-тумбы
       ctx.save();
-      ctx.strokeStyle = PAL.gridLine;
-      ctx.lineWidth = Math.max(1, 5 * k);
+      ctx.strokeStyle = PAL.outline;
+      ctx.lineWidth = Math.max(3, 7 * k);
       ctx.lineCap = 'round';
       ctx.beginPath();
-      ctx.moveTo(-u * 0.20, u * 0.20); ctx.lineTo(-u * 0.22 + gait * u * 0.05, u * 0.38);
-      ctx.moveTo(u * 0.20, u * 0.20); ctx.lineTo(u * 0.22 - gait * u * 0.05, u * 0.38);
+      ctx.moveTo(-u * 0.20, u * 0.18); ctx.lineTo(-u * 0.24 + gait * u * 0.05, u * 0.40);
+      ctx.moveTo(u * 0.20, u * 0.18); ctx.lineTo(u * 0.24 - gait * u * 0.05, u * 0.40);
+      ctx.stroke();
+      ctx.strokeStyle = e.hurt > 0 ? '#FFFFFF' : '#37474F';
+      ctx.lineWidth = Math.max(2, 4.6 * k);
       ctx.stroke();
       ctx.restore();
 
-      // Руки до земли
-      Enemies.arm(ctx, u, k, gait, -u * 0.44, -u * 0.10, u * 0.40, -u * 0.10);
-      Enemies.arm(ctx, u, k, -gait, u * 0.44, -u * 0.10, u * 0.40, u * 0.10);
-
       Enemies.shell(ctx, e, k, function () {
         Draw.smooth(ctx, [
-          [-u * 0.18, -u * 0.34], [u * 0.18, -u * 0.34], [u * 0.46, -u * 0.12],
-          [u * 0.36, u * 0.24], [-u * 0.36, u * 0.24], [-u * 0.46, -u * 0.12]
+          [-u * 0.26, -u * 0.30], [u * 0.26, -u * 0.30], [u * 0.46, -u * 0.06],
+          [u * 0.34, u * 0.22], [-u * 0.34, u * 0.22], [-u * 0.46, -u * 0.06]
         ]);
-      });
+      }, '#455A64');
 
-      // Голова вросла в плечи
+      // Бревно на плече
       ctx.save();
-      ctx.translate(0, -u * 0.34);
-      Enemies.shell(ctx, e, k, function () {
-        Draw.smooth(ctx, [
-          [0, -u * 0.16], [u * 0.16, -u * 0.06], [u * 0.13, u * 0.08],
-          [-u * 0.13, u * 0.08], [-u * 0.16, -u * 0.06]
-        ]);
-      });
-      ctx.fillStyle = PAL.enemy;
-      var ey = -u * 0.02, r = 1.7 * k;
-      Draw.circle(ctx, -u * 0.09, ey, r); ctx.fill();
-      Draw.circle(ctx, -u * 0.03, ey, r); ctx.fill();
-      Draw.circle(ctx, u * 0.03, ey, r); ctx.fill();
-      Draw.circle(ctx, u * 0.09, ey, r); ctx.fill();
+      ctx.translate(-u * 0.30, -u * 0.34);
+      ctx.rotate(-0.5);
+      ctx.fillStyle = e.hurt > 0 ? '#FFFFFF' : '#8D6E63';
+      ctx.strokeStyle = PAL.outline;
+      ctx.lineWidth = Math.max(1.8, 2.8 * k);
+      Draw.roundRect(ctx, -u * 0.09, -u * 0.34, u * 0.18, u * 0.62, u * 0.05);
+      ctx.fill(); ctx.stroke();
       ctx.restore();
 
-      ctx.save();
-      ctx.globalAlpha *= 0.3;
-      ctx.strokeStyle = '#4A5563';
-      ctx.lineWidth = Math.max(1, 1.2 * k);
-      ctx.beginPath();
-      ctx.moveTo(-u * 0.30, u * 0.04); ctx.lineTo(u * 0.30, u * 0.04);
-      ctx.moveTo(-u * 0.26, u * 0.16); ctx.lineTo(u * 0.26, u * 0.16);
-      ctx.stroke();
-      ctx.restore();
+      Enemies.head(ctx, u, k, e, u * 0.04, -u * 0.40, u * 0.20, time, 14);
+      Enemies.arms(ctx, u, k, e, gait, u * 0.00, u * 0.34);
     },
 
-    /* Титан: тот же размер, но закован в броню и с забралом */
+    /* Титан: тот же громила, но закованный в железо */
     titan: function (ctx, u, k, e, time, gait) {
       ctx.save();
-      ctx.strokeStyle = PAL.gridLine;
-      ctx.lineWidth = Math.max(1, 5.5 * k);
+      ctx.strokeStyle = PAL.outline;
+      ctx.lineWidth = Math.max(3, 7.4 * k);
       ctx.lineCap = 'round';
       ctx.beginPath();
-      ctx.moveTo(-u * 0.20, u * 0.22); ctx.lineTo(-u * 0.24 + gait * u * 0.04, u * 0.40);
-      ctx.moveTo(u * 0.20, u * 0.22); ctx.lineTo(u * 0.24 - gait * u * 0.04, u * 0.40);
+      ctx.moveTo(-u * 0.20, u * 0.20); ctx.lineTo(-u * 0.26 + gait * u * 0.04, u * 0.42);
+      ctx.moveTo(u * 0.20, u * 0.20); ctx.lineTo(u * 0.26 - gait * u * 0.04, u * 0.42);
+      ctx.stroke();
+      ctx.strokeStyle = e.hurt > 0 ? '#FFFFFF' : '#37474F';
+      ctx.lineWidth = Math.max(2, 4.8 * k);
       ctx.stroke();
       ctx.restore();
+
+      Enemies.shell(ctx, e, k, function () {
+        Draw.smooth(ctx, [
+          [-u * 0.26, -u * 0.30], [u * 0.26, -u * 0.30], [u * 0.44, -u * 0.04],
+          [u * 0.32, u * 0.24], [-u * 0.32, u * 0.24], [-u * 0.44, -u * 0.04]
+        ]);
+      }, '#546E7A');
 
       // Наплечники
       ctx.save();
-      ctx.fillStyle = '#39434F';
-      ctx.strokeStyle = '#5A6573';
-      ctx.lineWidth = Math.max(1, k);
+      ctx.fillStyle = e.hurt > 0 ? '#FFFFFF' : PAL.armorPlate;
+      ctx.strokeStyle = PAL.outline;
+      ctx.lineWidth = Math.max(1.8, 2.6 * k);
       Draw.smooth(ctx, [
-        [-u * 0.52, -u * 0.26], [-u * 0.30, -u * 0.32],
-        [-u * 0.28, -u * 0.04], [-u * 0.52, -u * 0.02]
+        [-u * 0.52, -u * 0.26], [-u * 0.28, -u * 0.34], [-u * 0.26, -u * 0.04], [-u * 0.52, u * 0.00]
       ]);
       ctx.fill(); ctx.stroke();
       Draw.smooth(ctx, [
-        [u * 0.52, -u * 0.26], [u * 0.30, -u * 0.32],
-        [u * 0.28, -u * 0.04], [u * 0.52, -u * 0.02]
+        [u * 0.52, -u * 0.26], [u * 0.28, -u * 0.34], [u * 0.26, -u * 0.04], [u * 0.52, u * 0.00]
       ]);
       ctx.fill(); ctx.stroke();
-      ctx.restore();
-
-      Enemies.shell(ctx, e, k, function () {
-        Draw.smooth(ctx, [
-          [-u * 0.20, -u * 0.32], [u * 0.20, -u * 0.32], [u * 0.40, -u * 0.08],
-          [u * 0.32, u * 0.26], [-u * 0.32, u * 0.26], [-u * 0.40, -u * 0.08]
-        ]);
-      });
 
       if (e.armor > 0) {
-        ctx.save();
-        ctx.fillStyle = '#39434F';
-        ctx.strokeStyle = '#5A6573';
-        ctx.lineWidth = Math.max(1, k);
         Draw.smooth(ctx, [
-          [-u * 0.24, -u * 0.06], [u * 0.24, -u * 0.06],
-          [u * 0.18, u * 0.22], [-u * 0.18, u * 0.22]
+          [-u * 0.24, -u * 0.08], [u * 0.24, -u * 0.08], [u * 0.18, u * 0.20], [-u * 0.18, u * 0.20]
         ]);
         ctx.fill(); ctx.stroke();
-        ctx.restore();
       }
+      ctx.restore();
 
-      // Забрало со щелью
+      // Шлем с прорезью
       ctx.save();
-      ctx.translate(0, -u * 0.34);
-      ctx.fillStyle = '#2A323C';
-      ctx.strokeStyle = '#5A6573';
-      ctx.lineWidth = Math.max(1, k);
+      ctx.fillStyle = e.hurt > 0 ? '#FFFFFF' : PAL.armorPlateD;
+      ctx.strokeStyle = PAL.outline;
+      ctx.lineWidth = Math.max(1.8, 2.6 * k);
       Draw.smooth(ctx, [
-        [0, -u * 0.16], [u * 0.18, -u * 0.04], [u * 0.14, u * 0.10],
-        [-u * 0.14, u * 0.10], [-u * 0.18, -u * 0.04]
+        [0, -u * 0.58], [u * 0.22, -u * 0.44], [u * 0.18, -u * 0.24],
+        [-u * 0.18, -u * 0.24], [-u * 0.22, -u * 0.44]
       ]);
       ctx.fill(); ctx.stroke();
-      ctx.fillStyle = PAL.bgDeep;
-      ctx.fillRect(-u * 0.13, -u * 0.03, u * 0.26, u * 0.05);
+      ctx.fillStyle = PAL.outline;
+      ctx.fillRect(-u * 0.16, -u * 0.40, u * 0.32, u * 0.07);
       ctx.fillStyle = PAL.enemy;
-      Draw.circle(ctx, -u * 0.07, -u * 0.005, 1.8 * k); ctx.fill();
-      Draw.circle(ctx, u * 0.07, -u * 0.005, 1.8 * k); ctx.fill();
+      Draw.circle(ctx, -u * 0.08, -u * 0.365, 2.2 * k); ctx.fill();
+      Draw.circle(ctx, u * 0.08, -u * 0.365, 2.2 * k); ctx.fill();
       ctx.restore();
+
+      Enemies.arms(ctx, u, k, e, gait, u * 0.02, u * 0.32);
     }
   }
 };

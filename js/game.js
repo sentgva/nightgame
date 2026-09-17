@@ -1535,8 +1535,8 @@ var Game = {
       ctx.translate((Math.random() * 2 - 1) * 4 * this.shake, (Math.random() * 2 - 1) * 4 * this.shake);
     }
 
-    // Корпус: поле — скруглённый прямоугольник, всё рисуем внутри него
-    ctx.fillStyle = PAL.bgField;
+    // Газон: земляная рамка, а внутри полосатая трава
+    ctx.fillStyle = PAL.soil;
     Draw.roundRect(ctx, 0, 0, W, H, 16);
     ctx.fill();
     ctx.save();
@@ -1575,14 +1575,29 @@ var Game = {
     ctx.restore();
   },
 
+  /* Газон в полоску: колонки чередуются светлым и тёмным зелёным.
+     Это и подача PvZ, и подсказка глазу — видно, по какой полосе идёт враг. */
   drawGrid: function (ctx, cell, W, H) {
     ctx.save();
-    ctx.strokeStyle = PAL.gridLine;
-    ctx.lineWidth = 0.5;
+    for (var c = 0; c < Grid.cols; c++) {
+      ctx.fillStyle = (c % 2 === 0) ? PAL.bgField : PAL.bgField2;
+      ctx.fillRect(c * cell, 0, cell, H);
+    }
+
+    // Мягкие межи между полосами
+    ctx.globalAlpha = 0.18;
+    ctx.strokeStyle = PAL.soil;
+    ctx.lineWidth = 1;
     ctx.beginPath();
-    for (var c = 1; c < Grid.cols; c++) { ctx.moveTo(c * cell, 0); ctx.lineTo(c * cell, H); }
+    for (var cc = 1; cc < Grid.cols; cc++) { ctx.moveTo(cc * cell, 0); ctx.lineTo(cc * cell, H); }
     for (var r = 1; r < Grid.rows; r++) { ctx.moveTo(0, r * cell); ctx.lineTo(W, r * cell); }
     ctx.stroke();
+
+    // Земляная кромка сверху и снизу
+    ctx.globalAlpha = 0.25;
+    ctx.fillStyle = PAL.soil;
+    ctx.fillRect(0, 0, W, cell * 0.10);
+    ctx.fillRect(0, H - cell * 0.10, W, cell * 0.10);
     ctx.restore();
   },
 
@@ -1601,8 +1616,8 @@ var Game = {
       var y = H * s.y;
       var rx = W * s.rx, ry = H * s.ry;
       var gr = ctx.createRadialGradient(x, y, 0, x, y, Math.max(rx, ry));
-      gr.addColorStop(0, 'rgba(96,165,250,' + s.a + ')');
-      gr.addColorStop(1, 'rgba(96,165,250,0)');
+      gr.addColorStop(0, 'rgba(255,255,255,' + (s.a * 1.6) + ')');
+      gr.addColorStop(1, 'rgba(255,255,255,0)');
       ctx.fillStyle = gr;
       ctx.save();
       ctx.translate(x, y);
@@ -1726,24 +1741,30 @@ var Game = {
       ctx.translate(d.x, d.y + bob);
       ctx.scale(pop, pop);
 
-      // Внешний ореол — дышит
-      ctx.fillStyle = PAL.spark;
-      ctx.globalAlpha = a * (0.10 + 0.08 * pulse);
-      Draw.circle(ctx, 0, 0, (11 + 2 * pulse) * k); ctx.fill();
-      ctx.globalAlpha = a * 0.22;
-      Draw.circle(ctx, 0, 0, 8.5 * k); ctx.fill();
+      // Лучики вокруг солнышка
+      ctx.globalAlpha = a * 0.75;
+      ctx.strokeStyle = PAL.sparkEdge;
+      ctx.lineWidth = 1.8 * k;
+      ctx.lineCap = 'round';
+      for (var r = 0; r < 8; r++) {
+        var ang = r * Math.PI / 4 + pulse * 0.2;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(ang) * 7.5 * k, Math.sin(ang) * 7.5 * k);
+        ctx.lineTo(Math.cos(ang) * (10.5 + pulse) * k, Math.sin(ang) * (10.5 + pulse) * k);
+        ctx.stroke();
+      }
 
-      // Тело монеты
+      // Диск
       ctx.globalAlpha = a;
-      Draw.circle(ctx, 0, 0, 6 * k); ctx.fill();
-
-      // Тёмное кольцо и блик — чтобы читалась монетой, а не пятном
-      ctx.strokeStyle = PAL.bgDeep;
-      ctx.lineWidth = 1.4 * k;
-      Draw.circle(ctx, 0, 0, 3.2 * k); ctx.stroke();
-      ctx.globalAlpha = a * 0.8;
-      ctx.fillStyle = '#FFE0A8';
-      Draw.circle(ctx, -1.8 * k, -2.2 * k, 1.2 * k); ctx.fill();
+      var sg = ctx.createRadialGradient(-2 * k, -2.5 * k, 1, 0, 0, 8 * k);
+      sg.addColorStop(0, '#FFF3C4');
+      sg.addColorStop(0.55, PAL.spark);
+      sg.addColorStop(1, PAL.sparkEdge);
+      ctx.fillStyle = sg;
+      ctx.strokeStyle = PAL.outline;
+      ctx.lineWidth = 1.8 * k;
+      Draw.circle(ctx, 0, 0, 7.5 * k);
+      ctx.fill(); ctx.stroke();
 
       ctx.restore();
     }
@@ -1766,7 +1787,7 @@ var Game = {
       // Тёмная обводка: без неё янтарное число тонет в светлых частицах
       ctx.lineWidth = 3 * k;
       ctx.lineJoin = 'round';
-      ctx.strokeStyle = PAL.bgDeep;
+      ctx.strokeStyle = PAL.outline;
       ctx.strokeText(p.text, p.x, py);
       ctx.fillStyle = PAL.spark;
       ctx.fillText(p.text, p.x, py);
@@ -1855,14 +1876,14 @@ var Game = {
   drawVignette: function (ctx, W, H, k) {
     var top = 20 * k, bot = 20 * k;
     var g1 = ctx.createLinearGradient(0, 0, 0, top);
-    g1.addColorStop(0, 'rgba(10,14,20,0.5)');
-    g1.addColorStop(1, 'rgba(10,14,20,0)');
+    g1.addColorStop(0, 'rgba(46,30,16,0.35)');
+    g1.addColorStop(1, 'rgba(46,30,16,0)');
     ctx.fillStyle = g1;
     ctx.fillRect(0, 0, W, top);
 
     var g2 = ctx.createLinearGradient(0, H, 0, H - bot);
-    g2.addColorStop(0, 'rgba(10,14,20,0.4)');
-    g2.addColorStop(1, 'rgba(10,14,20,0)');
+    g2.addColorStop(0, 'rgba(46,30,16,0.30)');
+    g2.addColorStop(1, 'rgba(46,30,16,0)');
     ctx.fillStyle = g2;
     ctx.fillRect(0, H - bot, W, bot);
   },

@@ -16,9 +16,9 @@ var TG = (function () {
     try {
       t.ready();
       t.expand();
-      // Игра всегда тёмная — тему клиента не применяем, только красим хром
-      if (t.setHeaderColor) t.setHeaderColor('#0A0E14');
-      if (t.setBackgroundColor) t.setBackgroundColor('#0A0E14');
+      // Тему клиента не применяем: у игры своя палитра, красим только хром
+      if (t.setHeaderColor) t.setHeaderColor('#7A5533');
+      if (t.setBackgroundColor) t.setBackgroundColor('#3E6B1F');
       if (t.disableVerticalSwipes) t.disableVerticalSwipes();   // свайп вниз не должен закрывать игру
       if (t.enableClosingConfirmation) t.enableClosingConfirmation();
     } catch (e) { /* старый клиент — не критично */ }

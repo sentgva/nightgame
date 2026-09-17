@@ -73,6 +73,7 @@ var UI = {
 
   /* Знак на главном экране: луна над рубежом. Чем проще, тем лучше
      читается на маленьком экране. */
+  /* Знак в меню: солнце над грядкой, из которой тянется росток */
   drawMenuMark: function () {
     var cv = document.getElementById('menu-mark-canvas');
     if (!cv) return;
@@ -82,55 +83,55 @@ var UI = {
     cv.style.width = S + 'px'; cv.style.height = S + 'px';
     var ctx = cv.getContext('2d');
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    var cx = S / 2;
+    var cx = S / 2, cy = 58;
 
-    // Звёзды: неровная россыпь, иначе читается как узор
-    ctx.fillStyle = PAL.textMain;
-    var stars = [[24, 30, 1.7, .35], [126, 40, 1.2, .25], [38, 96, 1.1, .2],
-                 [118, 92, 1.5, .3], [88, 16, 1.2, .25], [16, 66, 1.0, .18],
-                 [136, 68, 1.3, .22], [62, 26, 0.9, .2]];
-    for (var i = 0; i < stars.length; i++) {
-      ctx.globalAlpha = stars[i][3];
-      Draw.circle(ctx, stars[i][0], stars[i][1], stars[i][2]);
-      ctx.fill();
+    // Лучи
+    ctx.strokeStyle = '#E09B00';
+    ctx.lineWidth = 5;
+    ctx.lineCap = 'round';
+    for (var i = 0; i < 12; i++) {
+      var ang = i * Math.PI / 6;
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(ang) * 38, cy + Math.sin(ang) * 38);
+      ctx.lineTo(cx + Math.cos(ang) * 50, cy + Math.sin(ang) * 50);
+      ctx.stroke();
     }
 
-    // Луна: ореол, диск, вырезанный серп
-    ctx.globalAlpha = 0.10;
-    ctx.fillStyle = PAL.spark;
-    Draw.circle(ctx, cx, 62, 44);
-    ctx.fill();
+    // Диск солнца
+    var g = ctx.createRadialGradient(cx - 10, cy - 12, 4, cx, cy, 36);
+    g.addColorStop(0, '#FFF3C4');
+    g.addColorStop(0.55, '#FFD54F');
+    g.addColorStop(1, '#E09B00');
+    ctx.fillStyle = g;
+    ctx.strokeStyle = '#2F2013';
+    ctx.lineWidth = 3;
+    Draw.circle(ctx, cx, cy, 34);
+    ctx.fill(); ctx.stroke();
 
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = PAL.fillSpark;
-    Draw.circle(ctx, cx, 62, 32);
-    ctx.fill();
-    ctx.strokeStyle = PAL.spark;
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
+    // Грядка
+    ctx.fillStyle = '#5D4037';
+    ctx.strokeStyle = '#2F2013';
+    ctx.lineWidth = 3;
+    Draw.roundRect(ctx, 16, 116, S - 32, 22, 8);
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#8BC34A';
+    Draw.roundRect(ctx, 16, 112, S - 32, 10, 5);
+    ctx.fill(); ctx.stroke();
 
-    ctx.save();
-    Draw.circle(ctx, cx, 62, 32);
-    ctx.clip();
-    ctx.fillStyle = PAL.bgDeep;
-    Draw.circle(ctx, cx + 19, 52, 30);
-    ctx.fill();
-    ctx.restore();
-
-    // Горизонт: поле уходит в туман
-    ctx.globalAlpha = 0.5;
-    ctx.strokeStyle = PAL.gridLine;
-    ctx.lineWidth = 1;
+    // Росток
+    ctx.strokeStyle = '#2E6B1E';
+    ctx.lineWidth = 5;
     ctx.beginPath();
-    ctx.moveTo(10, 122);
-    ctx.quadraticCurveTo(cx, 112, S - 10, 122);
+    ctx.moveTo(cx, 116);
+    ctx.quadraticCurveTo(cx - 4, 104, cx, 96);
     ctx.stroke();
-    ctx.globalAlpha = 0.22;
-    ctx.beginPath();
-    ctx.moveTo(24, 134);
-    ctx.quadraticCurveTo(cx, 126, S - 24, 134);
-    ctx.stroke();
-    ctx.globalAlpha = 1;
+    Draw.leaf(ctx, cx, 104, 20, 9, -0.4, '#7CB342', '#2E6B1E', 1);
+    Draw.leaf(ctx, cx, 100, 18, 8, 3.5, '#7CB342', '#2E6B1E', 1);
+    ctx.fillStyle = '#7CB342';
+    ctx.strokeStyle = '#2E6B1E';
+    ctx.lineWidth = 3;
+    Draw.circle(ctx, cx, 94, 9);
+    ctx.fill(); ctx.stroke();
   },
 
   bindMenu: function () {

@@ -1,64 +1,72 @@
 /* ==========================================================================
-   Ночная оборона — тёмный минимализм с точечным свечением.
-   Палитра и метрики строго по спецификации.
+   Ночная оборона — подача в духе Plants vs. Zombies.
+   Дневной газон, деревянные вывески, пакетики семян, толстые тёмные контуры.
    ========================================================================== */
 
 :root {
-  --bg-deep:      #0A0E14;
-  --bg-panel:     #0E131B;
-  --bg-field:     #121820;
-  --grid-line:    #1E2836;
-  --text-main:    #E8EDF2;
-  --text-muted:   #6B7A8F;
-  --spark:        #FFB347;
-  --ally:         #4ADE80;
-  --enemy:        #F43F5E;
-  --ice:          #60A5FA;
-  --danger:       #DC2626;
+  --grass-dark:   #3E6B1F;
+  --grass:        #8BC34A;
+  --grass-alt:    #7CB342;
+  --soil:         #5D4037;
+  --wood:         #7A5533;
+  --wood-light:   #9B6F45;
+  --wood-dark:    #4E3620;
+  --paper:        #EFDCAF;
+  --paper-dark:   #D8C08A;
+  --paper-locked: #B7A480;
 
-  --fill-ally:    #16241C;
-  --fill-enemy:   #181F2B;
-  --fill-armor:   #1C242F;
-  --fill-spark:   #2A2013;
-  --fill-ice:     #152232;
-  --fill-neutral: #1B2430;
-  --card-bg:      #151C26;
-  --card-locked:  #101620;
+  --ink:          #2F2013;
+  --text-main:    #FFFFFF;
+  --text-dark:    #3E2723;
+  --text-muted:   #EFE4C8;
 
-  --top-h: 50px;
-  --dock-h: 90px;
+  --sun:          #FFD54F;
+  --sun-edge:     #E09B00;
+  --ally:         #7CB342;
+  --ally-dark:    #33691E;
+  --enemy:        #C62828;
+  --ice:          #4FC3F7;
+  --danger:       #D32F2F;
+
+  /* Старые имена оставлены: на них завязаны скрипты и разметка */
+  --bg-deep:      var(--grass-dark);
+  --bg-panel:     var(--wood);
+  --bg-field:     var(--grass);
+  --grid-line:    var(--wood-dark);
+  --spark:        var(--sun);
+  --card-bg:      var(--paper);
+  --card-locked:  var(--paper-locked);
+  --fill-ally:    #558B2F;
+  --fill-spark:   #FFE082;
+  --fill-ice:     #B3E5FC;
+  --fill-neutral: #A1887F;
+
+  --top-h: 54px;
+  --dock-h: 94px;
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
-/* ---------- Полосы прокрутки ----------
-   Системная полоса светлая и выбивается из тёмного интерфейса,
-   поэтому перекрашиваем её и в Firefox, и в движках на WebKit. */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: #2C3A4C transparent;
-}
+/* ---------- Полосы прокрутки ---------- */
+* { scrollbar-width: thin; scrollbar-color: var(--wood-dark) transparent; }
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-button { display: none; }   /* стрелки по краям тут лишние */
+::-webkit-scrollbar-button { display: none; }
 ::-webkit-scrollbar-corner { background: transparent; }
 ::-webkit-scrollbar-thumb {
-  background: #2C3A4C;
-  border: 3px solid transparent;
-  background-clip: padding-box;
-  border-radius: 6px;
+  background: var(--wood-dark); border: 3px solid transparent;
+  background-clip: padding-box; border-radius: 6px;
 }
-::-webkit-scrollbar-thumb:hover { background: #3C4C60; background-clip: padding-box; }
-::-webkit-scrollbar-thumb:active { background: var(--spark); background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: var(--wood); background-clip: padding-box; }
 
 html, body {
   margin: 0; padding: 0;
   height: 100%;
   overflow: hidden;
-  background: var(--bg-deep);
+  background: var(--grass-dark);
   color: var(--text-main);
   font-family: -apple-system, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
-  font-weight: 400;
+  font-weight: 500;
   font-size: 14px;
   font-variant-numeric: tabular-nums;
   -webkit-user-select: none; user-select: none;
@@ -66,31 +74,22 @@ html, body {
   overscroll-behavior: none;
 }
 
-#app {
-  position: relative;
-  height: 100%;
-  width: 100%;
-  max-width: 560px;
-  margin: 0 auto;
-  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
-  display: flex;
-  flex-direction: column;
-}
-
-/* Ночное небо под всем интерфейсом: редкие звёзды вместо плоской заливки.
-   Точки расставлены вручную — регулярная сетка читалась бы как текстура. */
+/* Задник: трава с лёгкими полосами, как газон за пределами грядки */
 body::before {
   content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
-  background-image:
-    radial-gradient(1px 1px at 12% 18%, rgba(232,237,242,.20), transparent 100%),
-    radial-gradient(1px 1px at 78% 9%,  rgba(232,237,242,.14), transparent 100%),
-    radial-gradient(1px 1px at 33% 61%, rgba(232,237,242,.12), transparent 100%),
-    radial-gradient(1px 1px at 88% 44%, rgba(232,237,242,.18), transparent 100%),
-    radial-gradient(1px 1px at 57% 83%, rgba(232,237,242,.10), transparent 100%),
-    radial-gradient(1px 1px at 5% 74%,  rgba(232,237,242,.14), transparent 100%),
-    radial-gradient(1px 1px at 68% 29%, rgba(232,237,242,.10), transparent 100%);
+  background:
+    repeating-linear-gradient(90deg,
+      rgba(255,255,255,.035) 0 26px, rgba(0,0,0,.03) 26px 52px),
+    radial-gradient(120% 70% at 50% -10%, #6E9A3A 0%, var(--grass-dark) 70%);
 }
-#app { z-index: 1; }
+
+#app {
+  position: relative; z-index: 1;
+  height: 100%; width: 100%;
+  max-width: 560px; margin: 0 auto;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  display: flex; flex-direction: column;
+}
 
 .hidden { display: none !important; }
 
@@ -98,99 +97,99 @@ body::before {
 .screen { display: none; flex: 1 1 auto; min-height: 0; flex-direction: column; }
 .screen.active { display: flex; }
 
-/* ---------- Кнопки ---------- */
+/* ---------- Кнопки: деревянные таблички ---------- */
 .btn {
   appearance: none;
-  border: 1px solid var(--grid-line);
-  background: var(--card-bg);
+  border: 3px solid var(--ink);
+  background: linear-gradient(180deg, var(--wood-light) 0%, var(--wood) 55%, var(--wood-dark) 100%);
   color: var(--text-main);
-  font: inherit;
-  font-size: 14px;
-  font-weight: 500;
-  padding: 13px 20px;
-  border-radius: 12px;
+  font: inherit; font-size: 15px; font-weight: 600;
+  padding: 12px 20px;
+  border-radius: 14px;
   cursor: pointer;
-  transition: transform .12s ease, border-color .12s ease, opacity .12s ease;
-  min-height: 44px;
+  text-shadow: 0 2px 0 rgba(0,0,0,.45);
+  box-shadow: 0 4px 0 var(--ink), 0 6px 10px rgba(0,0,0,.3);
+  transition: transform .08s ease, box-shadow .08s ease;
+  min-height: 46px;
 }
-.btn:active { transform: scale(.975); }
+.btn:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 var(--ink), 0 2px 6px rgba(0,0,0,.3);
+}
 .btn.primary {
-  border-color: var(--ally); color: var(--ally); background: var(--fill-ally);
-  box-shadow: 0 0 0 4px rgba(74, 222, 128, .07);
+  background: linear-gradient(180deg, #9CCC65 0%, var(--ally) 55%, var(--ally-dark) 100%);
 }
-.btn.primary:active { box-shadow: 0 0 0 2px rgba(74, 222, 128, .12); }
-.btn.ghost { background: transparent; border-color: transparent; color: var(--text-muted); }
-.btn.small { font-size: 11px; font-weight: 400; padding: 9px 14px; min-height: 36px; }
+.btn.ghost {
+  background: rgba(0,0,0,.18);
+  border-color: rgba(47,32,19,.5);
+  box-shadow: none; color: var(--text-muted); font-weight: 500;
+}
+.btn.ghost:active { transform: none; background: rgba(0,0,0,.28); }
+.btn.small { font-size: 12px; padding: 8px 14px; min-height: 38px; border-width: 2px; }
 .btn.tiny {
-  font-size: 11px; padding: 7px 12px; min-height: 32px;
-  border-color: var(--spark); color: var(--spark); background: var(--fill-spark);
+  font-size: 12px; padding: 7px 12px; min-height: 34px; border-width: 2px;
+  background: linear-gradient(180deg, #FFE082 0%, var(--sun) 60%, var(--sun-edge) 100%);
+  color: var(--text-dark); text-shadow: none;
+  box-shadow: 0 3px 0 var(--ink);
 }
 .icon-btn {
-  appearance: none; border: none; background: transparent;
-  width: 30px; height: 30px; padding: 0;
+  appearance: none; border: 2px solid var(--ink); background: var(--wood-dark);
+  width: 32px; height: 32px; padding: 0;
   display: flex; align-items: center; justify-content: center;
-  color: var(--text-muted); cursor: pointer; font-size: 17px; line-height: 1;
-  border-radius: 8px;
+  color: var(--text-muted); cursor: pointer; font-size: 15px; line-height: 1;
+  border-radius: 9px;
 }
-.icon-btn:active { background: var(--grid-line); }
+.icon-btn:active { background: var(--wood); }
+.icon-btn[hidden] { display: none; }
+
+/* ---------- Тумблер ---------- */
+.btn.toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.switch {
+  width: 38px; height: 22px; flex: 0 0 38px;
+  border: 2px solid var(--ink); border-radius: 11px;
+  background: var(--wood-dark); position: relative;
+  transition: background .15s ease;
+}
+.switch::after {
+  content: ""; position: absolute; top: 2px; left: 2px;
+  width: 14px; height: 14px; border-radius: 50%;
+  background: var(--paper-locked);
+  transition: transform .15s ease, background .15s ease;
+}
+.btn.toggle.on .switch { background: var(--sun-edge); }
+.btn.toggle.on .switch::after { transform: translateX(16px); background: var(--sun); }
 
 /* ---------- Главное меню ---------- */
 .menu-inner {
   flex: 1; display: flex; flex-direction: column;
   align-items: center; justify-content: center;
-  padding: 24px; gap: 4px; text-align: center;
-}
-.menu-mark { margin-bottom: 10px; }
-.title { font-size: 26px; font-weight: 500; margin: 0; letter-spacing: .4px; }
-.subtitle {
-  font-size: 11px; color: var(--text-muted); margin: 8px 0 30px;
-  letter-spacing: 4px; text-transform: uppercase;
+  padding: 24px; gap: 2px; text-align: center;
 }
 .menu-mark { margin-bottom: 2px; }
-.menu-buttons { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 260px; }
+.title {
+  font-size: 30px; font-weight: 700; margin: 0; letter-spacing: .5px;
+  color: var(--sun);
+  text-shadow: 0 3px 0 var(--ink), 0 5px 12px rgba(0,0,0,.45);
+}
+.subtitle {
+  font-size: 11px; color: var(--text-muted); margin: 8px 0 28px;
+  letter-spacing: 5px; text-transform: uppercase;
+  text-shadow: 0 2px 0 rgba(0,0,0,.4);
+}
+.menu-buttons { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 270px; }
 
-/* ---------- Тумблер ---------- */
-.btn.toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.switch {
-  width: 36px; height: 20px; flex: 0 0 36px;
-  border-radius: 10px; background: var(--grid-line);
-  position: relative; transition: background .15s ease;
-}
-.switch::after {
-  content: ""; position: absolute; top: 3px; left: 3px;
-  width: 14px; height: 14px; border-radius: 50%;
-  background: var(--text-muted); transition: transform .15s ease, background .15s ease;
-}
-.btn.toggle.on { border-color: var(--spark); color: var(--spark); }
-.btn.toggle.on .switch { background: var(--fill-spark); }
-.btn.toggle.on .switch::after { transform: translateX(16px); background: var(--spark); }
-
-/* ---------- Панель разработчика ---------- */
-.dev-panel {
-  position: absolute; left: 8px; right: 8px; top: 8px; z-index: 18;
-  display: flex; flex-wrap: wrap; gap: 6px;
-  background: rgba(14,19,27,.94); border: 1px solid var(--spark);
-  border-radius: 12px; padding: 8px;
-}
-.dev-panel button {
-  appearance: none; border: 1px solid var(--grid-line); background: var(--card-bg);
-  color: var(--text-main); font: inherit; font-size: 11px;
-  padding: 7px 10px; border-radius: 8px; cursor: pointer; min-height: 32px;
-}
-.dev-panel button:active { border-color: var(--spark); }
-
-/* ---------- Карта уровней ---------- */
+/* ---------- Шапка экрана ---------- */
 .sub-head {
   height: var(--top-h); flex: 0 0 var(--top-h);
   display: flex; align-items: center; gap: 10px;
-  padding: 0 14px; background: var(--bg-panel);
+  padding: 0 14px;
+  background: linear-gradient(180deg, var(--wood-light), var(--wood));
+  border-bottom: 3px solid var(--ink);
   border-radius: 0 0 16px 16px;
-  font-size: 14px; font-weight: 500;
+  font-size: 15px; font-weight: 600;
+  text-shadow: 0 2px 0 rgba(0,0,0,.4);
 }
-.level-list {
-  flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 8px;
-  -webkit-overflow-scrolling: touch;
-}
+
 /* ---------- Акты и планеты ---------- */
 .planet-view {
   flex: 1; min-height: 0; overflow-y: auto;
@@ -198,239 +197,267 @@ body::before {
   -webkit-overflow-scrolling: touch;
 }
 #acts { display: flex; flex-direction: column; gap: 10px; }
-
 .act { flex: 0 0 auto; }
-.act-head {
-  display: flex; align-items: baseline; gap: 10px;
-  padding: 14px 2px 10px;
-}
-.act-num { font-size: 15px; font-weight: 500; }
+.act.locked { opacity: .55; }
+.act-head { display: flex; align-items: baseline; gap: 10px; padding: 14px 4px 10px; }
+.act-num { font-size: 17px; font-weight: 700; color: var(--sun); text-shadow: 0 2px 0 var(--ink); }
 .act-sub { font-size: 11px; color: var(--text-muted); }
-.act.locked .act-num, .act.locked .act-sub { color: var(--text-muted); }
-
 .act-row { display: flex; gap: 10px; }
+
 .planet-card {
   flex: 1 1 0; min-width: 0;
   display: flex; flex-direction: column; align-items: center; gap: 6px;
-  background: var(--card-bg); border: 1px solid var(--grid-line);
-  border-radius: 14px; padding: 10px 6px 12px; cursor: pointer;
-  transition: transform .12s ease, border-color .12s ease;
+  background: linear-gradient(180deg, var(--paper) 0%, var(--paper-dark) 100%);
+  border: 3px solid var(--ink);
+  border-radius: 16px; padding: 10px 6px 12px; cursor: pointer;
+  box-shadow: 0 4px 0 var(--ink);
+  transition: transform .08s ease, box-shadow .08s ease;
 }
-.planet-card:active { transform: scale(.98); }
-.planet-card.locked { background: var(--card-locked); border-color: transparent; cursor: default; }
-.planet-card.current { border-color: var(--ally); }
+.planet-card:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--ink); }
+.planet-card.locked {
+  background: var(--paper-locked); cursor: default;
+  box-shadow: 0 4px 0 var(--wood-dark); border-color: var(--wood-dark);
+}
+.planet-card.current { box-shadow: 0 4px 0 var(--ink), 0 0 0 3px var(--ally); }
 .planet-card canvas { display: block; touch-action: none; }
 .planet-card .pc-name {
-  font-size: 11px; text-align: center; line-height: 1.25;
+  font-size: 12px; font-weight: 600; color: var(--text-dark); text-align: center;
   max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.planet-card.locked .pc-name { color: var(--text-muted); }
-.planet-card .pc-score { font-size: 11px; color: var(--spark); }
-.planet-card.locked .pc-score { color: var(--text-muted); }
+.planet-card .pc-score { font-size: 11px; color: var(--wood-dark); font-weight: 600; }
 
 .planet-banner {
-  display: flex; flex-direction: column; gap: 4px;
-  padding: 10px 2px 2px;
+  flex: 0 0 auto;
+  display: flex; flex-direction: column; gap: 5px;
+  background: rgba(0,0,0,.22);
+  border: 2px solid var(--ink); border-radius: 14px;
+  padding: 12px 14px; margin-bottom: 4px;
 }
-.planet-banner .pb-mech { font-size: 11px; color: var(--ice); }
-.planet-banner .pb-desc { font-size: 11px; color: var(--text-muted); line-height: 1.5; }
+.planet-banner .pb-mech { font-size: 12px; font-weight: 600; color: var(--sun); }
+.planet-banner .pb-desc { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+.pb-roster { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 6px; }
+.pb-roster canvas { display: block; }
 
-/* Планета — секция карты со своим набором уровней */
-.planet { flex: 0 0 auto; display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px; }
-.planet.locked { opacity: .45; }
-.planet-head { display: flex; align-items: center; gap: 12px; padding: 0 2px; }
-.planet-mark {
-  width: 34px; height: 34px; flex: 0 0 34px;
-  border-radius: 50%; border: 1px solid var(--ice);
-  color: var(--ice); background: var(--fill-ice);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 15px; font-weight: 500;
+/* ---------- Список уровней ---------- */
+.level-list {
+  flex: 1; overflow-y: auto; padding: 14px;
+  display: flex; flex-direction: column; gap: 10px;
+  -webkit-overflow-scrolling: touch;
 }
-.planet.locked .planet-mark { border-color: var(--grid-line); color: var(--text-muted); background: var(--card-locked); }
-.planet-meta { flex: 1; min-width: 0; }
-.planet-name { font-size: 15px; font-weight: 500; }
-.planet-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
-.planet-score { font-size: 11px; color: var(--spark); }
-.planet.locked .planet-score { color: var(--text-muted); }
-.planet-desc {
-  font-size: 11px; color: var(--text-muted); line-height: 1.5;
-  padding: 0 2px 4px; margin-top: -2px;
-}
-
 .level-node {
-  flex: 0 0 auto;                     /* иначе flex-колонка сплющит карточки */
+  flex: 0 0 auto;
   display: flex; align-items: center; gap: 12px;
-  background: var(--card-bg); border: 1px solid var(--grid-line);
-  border-radius: 12px; padding: 12px 14px; cursor: pointer;
-  transition: transform .12s ease;
+  background: linear-gradient(180deg, var(--paper) 0%, var(--paper-dark) 100%);
+  border: 3px solid var(--ink);
+  border-radius: 14px; padding: 11px 14px; cursor: pointer;
+  box-shadow: 0 4px 0 var(--ink);
+  color: var(--text-dark);
+  transition: transform .08s ease, box-shadow .08s ease;
 }
-.level-node:active { transform: scale(.99); }
-.level-node.locked { background: var(--card-locked); border-color: transparent; color: var(--text-muted); cursor: default; }
-.level-node.current {
-  border-color: var(--ally);
-  box-shadow: 0 0 0 3px rgba(74, 222, 128, .07);
+.level-node:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--ink); }
+.level-node.locked {
+  background: var(--paper-locked); border-color: var(--wood-dark);
+  box-shadow: 0 4px 0 var(--wood-dark); cursor: default;
 }
+.level-node.current { box-shadow: 0 4px 0 var(--ink), 0 0 0 3px var(--ally); }
 .level-num {
-  width: 30px; height: 30px; flex: 0 0 30px;
-  border-radius: 9px; border: 1px solid var(--grid-line);
+  width: 34px; height: 34px; flex: 0 0 34px;
+  border-radius: 10px; border: 2px solid var(--ink);
+  background: var(--wood); color: var(--text-main);
   display: flex; align-items: center; justify-content: center;
-  font-size: 14px; font-weight: 500;
+  font-size: 15px; font-weight: 700;
 }
-.level-node.current .level-num { border-color: var(--ally); color: var(--ally); background: var(--fill-ally); }
-.level-node.done .level-num { border-color: var(--spark); color: var(--spark); background: var(--fill-spark); }
+.level-node.done .level-num { background: var(--sun); color: var(--text-dark); }
+.level-node.current .level-num { background: var(--ally); }
 .level-meta { flex: 1; min-width: 0; }
-.level-name { font-size: 14px; }
-.level-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
-.level-stars { display: flex; gap: 3px; }
-.star { width: 9px; height: 9px; border-radius: 50%; background: var(--grid-line); }
-.star.on { background: var(--spark); }
+.level-name { font-size: 14px; font-weight: 600; }
+.level-sub { font-size: 11px; color: var(--wood-dark); margin-top: 2px; }
+.level-stars { display: flex; gap: 4px; }
+.star {
+  width: 11px; height: 11px; border-radius: 50%;
+  background: var(--paper-locked); border: 2px solid var(--ink);
+}
+.star.on { background: var(--sun); }
 
 /* ---------- Справочник ---------- */
 .codex-list {
   flex: 1; overflow-y: auto; padding: 14px;
-  display: flex; flex-direction: column; gap: 8px;
+  display: flex; flex-direction: column; gap: 10px;
   -webkit-overflow-scrolling: touch;
 }
 .codex-item {
-  flex: 0 0 auto;                     /* иначе flex-колонка сплющит карточки */
-  background: var(--card-bg); border: 1px solid var(--grid-line);
-  border-radius: 12px; overflow: hidden;
+  flex: 0 0 auto;
+  background: linear-gradient(180deg, var(--paper) 0%, var(--paper-dark) 100%);
+  border: 3px solid var(--ink); border-radius: 14px; overflow: hidden;
+  box-shadow: 0 4px 0 var(--ink);
+  color: var(--text-dark);
 }
-.codex-head {
-  display: flex; align-items: center; gap: 12px;
-  padding: 12px 14px; cursor: pointer;
-}
+.codex-head { display: flex; align-items: center; gap: 12px; padding: 11px 14px; cursor: pointer; }
 .codex-head canvas { display: block; flex: 0 0 40px; }
 .codex-meta { flex: 1; min-width: 0; }
-.codex-name { font-size: 14px; }
-.codex-role { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
-.codex-cost { font-size: 11px; color: var(--spark); }
-.codex-body { display: none; padding: 0 14px 14px; }
+.codex-name { font-size: 14px; font-weight: 600; }
+.codex-role { font-size: 11px; color: var(--wood-dark); margin-top: 2px; }
+.codex-cost {
+  font-size: 12px; font-weight: 700; color: var(--text-dark);
+  background: var(--sun); border: 2px solid var(--ink);
+  border-radius: 8px; padding: 2px 7px;
+}
+.codex-body { display: none; padding: 0 14px 12px; }
 .codex-item.open .codex-body { display: block; }
 .codex-tier {
-  border-top: 1px solid var(--grid-line);
-  padding: 12px 0 4px; display: flex; gap: 12px; align-items: flex-start;
+  border-top: 2px solid rgba(47,32,19,.25);
+  padding: 10px 0 4px; display: flex; gap: 12px; align-items: flex-start;
 }
 .codex-tier canvas { display: block; flex: 0 0 52px; }
 .codex-tier-meta { flex: 1; min-width: 0; }
-.codex-tier-name { font-size: 11px; color: var(--text-main); margin-bottom: 6px; }
-.codex-tier-name .price { color: var(--spark); }
-.codex-tier-name .where { color: var(--ice); }
+.codex-tier-name { font-size: 12px; font-weight: 600; margin-bottom: 6px; }
+.codex-tier-name .price { color: #B26A00; }
+.codex-tier-name .where { color: #0277BD; }
 .codex-stat {
   display: flex; justify-content: space-between; gap: 10px;
-  font-size: 11px; color: var(--text-muted); line-height: 1.7;
+  font-size: 12px; color: var(--wood-dark); line-height: 1.7;
 }
-.codex-stat b { font-weight: 400; color: var(--text-main); }
-.codex-stat.grow b { color: var(--ally); }
-.codex-locked { font-size: 11px; color: var(--text-muted); padding-top: 8px; }
+.codex-stat b { font-weight: 700; color: var(--text-dark); }
+.codex-stat.grow b { color: var(--ally-dark); }
 
-/* ---------- Верхняя панель игры ---------- */
+/* ---------- Верхняя панель боя ---------- */
 .topbar {
   height: var(--top-h); flex: 0 0 var(--top-h);
   display: flex; align-items: center; justify-content: space-between;
-  padding: 0 14px; background: var(--bg-panel);
+  padding: 0 12px;
+  background: linear-gradient(180deg, var(--wood-light), var(--wood));
+  border-bottom: 3px solid var(--ink);
   border-radius: 0 0 16px 16px;
 }
-.hud-sparks { display: flex; align-items: center; gap: 7px; font-size: 15px; font-weight: 500; }
+.hud-sparks {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 16px; font-weight: 700; color: var(--text-dark);
+  background: var(--paper); border: 2px solid var(--ink);
+  border-radius: 11px; padding: 3px 10px 3px 4px;
+}
 .hud-sparks.pop { animation: pop .3s ease; }
 @keyframes pop { 0%,100% { transform: scale(1); } 40% { transform: scale(1.14); } }
 .spark-dot {
-  width: 14px; height: 14px; border-radius: 50%;
-  background: var(--spark); position: relative; display: block;
+  width: 20px; height: 20px; border-radius: 50%; display: block;
+  background: radial-gradient(circle at 35% 32%, #FFF3C4 0%, var(--sun) 55%, var(--sun-edge) 100%);
+  border: 2px solid var(--ink);
 }
-.spark-dot::after {
-  content: ""; position: absolute; inset: 5px;
-  border-radius: 50%; background: var(--bg-deep);
-}
-.hud-wave { display: flex; flex-direction: column; align-items: center; line-height: 1.25; }
-.cap { font-size: 11px; color: var(--text-muted); }
-#wave-count { font-size: 14px; font-weight: 500; }
-.hud-right { display: flex; align-items: center; gap: 8px; }
+.spark-dot::after { content: none; }
+.hud-wave { display: flex; flex-direction: column; align-items: center; line-height: 1.2; }
+.cap { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+#wave-count { font-size: 15px; font-weight: 700; text-shadow: 0 2px 0 rgba(0,0,0,.4); }
+.hud-right { display: flex; align-items: center; gap: 7px; }
 .lives { display: flex; gap: 5px; margin-right: 2px; }
-.life { width: 10px; height: 10px; border-radius: 50%; background: var(--enemy); }
-.life.lost { background: var(--grid-line); }
+.life {
+  width: 13px; height: 13px; border-radius: 50%;
+  background: var(--enemy); border: 2px solid var(--ink);
+}
+.life.lost { background: var(--wood-dark); }
 
-/* ---------- Игровое поле ---------- */
+/* ---------- Поле ---------- */
 .field-wrap {
   flex: 1 1 auto; min-height: 0;
   position: relative;
   display: flex; align-items: center; justify-content: center;
-  background: var(--bg-deep);
-  padding: 6px;
+  padding: 8px;
 }
-#field { display: block; border-radius: 16px; touch-action: none; }
+#field {
+  display: block; border-radius: 16px; touch-action: none;
+  border: 3px solid var(--ink);
+  box-shadow: 0 6px 14px rgba(0,0,0,.4);
+}
 
-/* Меню установленного юнита */
+/* ---------- Меню юнита ---------- */
 .unit-menu {
   position: absolute; z-index: 20;
-  background: var(--bg-panel); border: 1px solid var(--grid-line);
-  border-radius: 10px; padding: 5px; display: flex; flex-direction: column; gap: 3px;
-  min-width: 132px;
+  background: linear-gradient(180deg, var(--paper) 0%, var(--paper-dark) 100%);
+  border: 3px solid var(--ink); border-radius: 12px;
+  padding: 5px; display: flex; flex-direction: column; gap: 3px;
+  min-width: 146px; box-shadow: 0 4px 0 var(--ink);
 }
+.unit-menu-head {
+  display: flex; justify-content: space-between; gap: 10px;
+  font-size: 11px; color: var(--wood-dark); font-weight: 600;
+  padding: 5px 9px 3px;
+}
+.unit-menu-head .tier { color: var(--ally-dark); }
 .unit-menu button {
-  appearance: none; border: none; background: transparent; color: var(--text-main);
-  font: inherit; font-size: 11px; text-align: left;
-  padding: 9px 10px; border-radius: 7px; cursor: pointer;
-  display: flex; justify-content: space-between; gap: 10px; min-height: 34px; align-items: center;
+  appearance: none; border: none; background: transparent; color: var(--text-dark);
+  font: inherit; font-size: 12px; font-weight: 600; text-align: left;
+  padding: 9px 10px; border-radius: 8px; cursor: pointer;
+  display: flex; justify-content: space-between; gap: 10px;
+  min-height: 34px; align-items: center;
 }
-.unit-menu button:active { background: var(--card-bg); }
-.unit-menu button.disabled { color: var(--text-muted); }
-.unit-menu .price { color: var(--spark); }
-.unit-menu button.disabled .price { color: var(--text-muted); }
+.unit-menu button:active { background: rgba(47,32,19,.12); }
+.unit-menu button.disabled { color: var(--paper-locked); }
+.unit-menu .price { color: #B26A00; }
+.unit-menu button.disabled .price { color: var(--paper-locked); }
 
-/* Баннер межволновой паузы */
+/* ---------- Баннер волны и подсказки ---------- */
 .wave-banner {
-  position: absolute; left: 50%; top: 14px; transform: translateX(-50%);
+  position: absolute; left: 50%; top: 12px; transform: translateX(-50%);
   z-index: 15; display: flex; align-items: center; gap: 10px;
-  background: rgba(14,19,27,.9); border: 1px solid var(--grid-line);
-  border-radius: 12px; padding: 7px 8px 7px 14px; font-size: 11px; white-space: nowrap;
+  background: linear-gradient(180deg, var(--wood-light), var(--wood));
+  border: 3px solid var(--ink); border-radius: 14px;
+  padding: 6px 8px 6px 14px; font-size: 12px; font-weight: 600; white-space: nowrap;
+  box-shadow: 0 4px 0 var(--ink);
 }
 #wave-banner-text { color: var(--text-muted); }
-
-/* Всплывающая подсказка */
 .toast {
-  position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%);
-  z-index: 16; background: rgba(14,19,27,.94); border: 1px solid var(--grid-line);
-  border-radius: 10px; padding: 8px 14px; font-size: 11px; color: var(--text-muted);
+  position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%);
+  z-index: 16; background: var(--paper);
+  border: 3px solid var(--ink); border-radius: 12px;
+  padding: 7px 14px; font-size: 12px; font-weight: 600; color: var(--text-dark);
   pointer-events: none; opacity: 0; transition: opacity .2s ease;
+  box-shadow: 0 4px 0 var(--ink);
 }
 .toast.show { opacity: 1; }
 
-/* ---------- Нижняя панель с карточками ---------- */
+/* ---------- Нижняя панель: пакетики семян ---------- */
 .dock {
   height: var(--dock-h); flex: 0 0 var(--dock-h);
-  background: var(--bg-panel);
+  background: linear-gradient(180deg, var(--wood), var(--wood-dark));
+  border-top: 3px solid var(--ink);
   border-radius: 16px 16px 0 0;
-  display: flex; align-items: center; gap: 12px;
-  padding: 0 14px; overflow-x: auto; overflow-y: hidden;
+  display: flex; align-items: center; gap: 10px;
+  padding: 0 12px; overflow-x: auto; overflow-y: hidden;
   -webkit-overflow-scrolling: touch; scrollbar-width: none;
 }
 .dock::-webkit-scrollbar { display: none; }
 
 .card {
-  position: relative; flex: 0 0 66px;
-  width: 66px; height: 66px;
-  background: var(--card-bg); border: 1px solid var(--grid-line);
+  position: relative; flex: 0 0 62px;
+  width: 62px; height: 72px;
+  background: linear-gradient(180deg, var(--paper) 0%, var(--paper-dark) 100%);
+  border: 3px solid var(--ink);
   border-radius: 10px; overflow: hidden;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 1px; cursor: pointer;
-  transition: transform .12s ease, border-color .12s ease;
+  display: flex; flex-direction: column; align-items: center;
+  cursor: pointer; padding-top: 4px;
+  box-shadow: 0 3px 0 var(--ink);
+  transition: transform .08s ease, box-shadow .08s ease;
 }
+/* Верхняя полоса пакетика в цвете растения */
 .card::before {
-  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 3px;
-  background: var(--accent, var(--grid-line));
+  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 5px;
+  background: var(--accent, var(--wood));
+  border-bottom: 2px solid var(--ink);
 }
-.card.locked::before { opacity: .3; }
-.card canvas { display: block; }
-.card-name { font-size: 11px; line-height: 1.1; color: var(--text-main); }
-.card-cost { font-size: 11px; line-height: 1.1; color: var(--spark); }
-.card.locked { background: var(--card-locked); border-color: transparent; }
-.card.locked .card-name, .card.locked .card-cost { color: var(--text-muted); }
-.card.locked canvas { opacity: .35; }
+.card canvas { display: block; margin-top: 5px; }
+.card-name {
+  font-size: 10px; font-weight: 600; line-height: 1.1; color: var(--text-dark);
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  padding: 0 2px;
+}
+.card-cost {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  background: var(--sun); border-top: 2px solid var(--ink);
+  font-size: 11px; font-weight: 700; color: var(--text-dark);
+  text-align: center; line-height: 15px; height: 17px;
+}
+.card.locked { filter: grayscale(.65) brightness(.75); }
 .card.selected {
-  border-color: var(--accent, var(--text-main));
-  transform: translateY(-4px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, .5);
+  transform: translateY(-5px);
+  box-shadow: 0 6px 0 var(--ink), 0 0 0 3px var(--sun);
 }
 .card.shake { animation: shake-card .2s ease; }
 @keyframes shake-card {
@@ -440,68 +467,74 @@ body::before {
 }
 .card-cd {
   position: absolute; left: 0; right: 0; bottom: 0;
-  background: rgba(10,14,20,.72);
+  background: rgba(47,32,19,.6);
   pointer-events: none;
 }
 
 /* ---------- Оверлеи ---------- */
 .overlay {
   position: fixed; inset: 0; z-index: 60;
-  background: rgba(10,14,20,.86);
+  background: rgba(20, 38, 10, .82);
   display: flex; align-items: center; justify-content: center;
   padding: 24px;
 }
 .panel {
-  width: 100%; max-width: 300px;
-  background: var(--bg-panel); border: 1px solid var(--grid-line);
-  border-radius: 16px; padding: 22px 20px;
+  width: 100%; max-width: 310px;
+  background: linear-gradient(180deg, var(--wood-light) 0%, var(--wood) 100%);
+  border: 4px solid var(--ink);
+  border-radius: 18px; padding: 22px 20px;
   display: flex; flex-direction: column; gap: 10px; text-align: center;
+  box-shadow: 0 8px 0 var(--ink), 0 14px 26px rgba(0,0,0,.45);
   animation: rise .22s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-@keyframes rise { from { opacity: 0; transform: translateY(10px) scale(.96); } }
-.panel h2 { font-size: 22px; font-weight: 500; margin: 0 0 4px; }
-.panel p { font-size: 14px; color: var(--text-muted); margin: 0 0 6px; line-height: 1.5; }
+@keyframes rise { from { opacity: 0; transform: translateY(12px) scale(.95); } }
+.panel h2 {
+  font-size: 22px; font-weight: 700; margin: 0 0 4px;
+  color: var(--sun); text-shadow: 0 3px 0 var(--ink);
+}
+.panel p { font-size: 13px; color: var(--text-muted); margin: 0 0 6px; line-height: 1.5; }
 .panel .row { display: flex; gap: 10px; }
 .panel .row .btn { flex: 1; }
-.stars { display: flex; justify-content: center; gap: 8px; margin: 2px 0 8px; }
-.stars .star { width: 14px; height: 14px; }
+.stars { display: flex; justify-content: center; gap: 10px; margin: 2px 0 8px; }
+.stars .star { width: 18px; height: 18px; }
 .result-stats {
   display: flex; flex-direction: column; gap: 5px;
-  font-size: 11px; color: var(--text-muted); margin-bottom: 8px;
+  font-size: 12px; color: var(--text-muted); margin-bottom: 8px;
 }
 .result-stats .line { display: flex; justify-content: space-between; }
-.result-stats .line b { font-weight: 500; color: var(--text-main); }
+.result-stats .line b { font-weight: 700; color: var(--text-main); }
 .tutorial .panel { text-align: left; }
-.tutorial .panel h2 { font-size: 15px; }
+.tutorial .panel h2 { font-size: 17px; }
+
+/* ---------- Панель разработчика ---------- */
+.dev-panel {
+  position: absolute; left: 8px; right: 8px; top: 8px; z-index: 18;
+  display: flex; flex-wrap: wrap; gap: 6px;
+  background: linear-gradient(180deg, var(--wood-light), var(--wood));
+  border: 3px solid var(--ink); border-radius: 14px; padding: 8px;
+  box-shadow: 0 4px 0 var(--ink);
+}
+.dev-panel button {
+  appearance: none; border: 2px solid var(--ink);
+  background: var(--paper); color: var(--text-dark);
+  font: inherit; font-size: 11px; font-weight: 600;
+  padding: 6px 10px; border-radius: 8px; cursor: pointer; min-height: 32px;
+}
+.dev-panel button:active { background: var(--paper-dark); }
 
 /* ---------- Заглушка поворота ---------- */
 #rotate-blocker {
   position: fixed; inset: 0; z-index: 100;
-  background: var(--bg-deep); color: var(--text-muted);
+  background: var(--grass-dark); color: var(--text-muted);
   display: none; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
-  font-size: 14px;
+  font-size: 15px; font-weight: 600;
 }
 #rotate-blocker.show { display: flex; }
 .rotate-icon {
-  width: 34px; height: 54px; border: 1px solid var(--text-muted); border-radius: 6px;
+  width: 36px; height: 56px; border: 3px solid var(--text-muted); border-radius: 8px;
   animation: turn 2.4s ease-in-out infinite;
 }
 @keyframes turn {
   0%, 40% { transform: rotate(90deg); }
   60%, 100% { transform: rotate(0deg); }
 }
-
-/* Шапка меню юнита: имя и текущая ступень */
-.unit-menu-head {
-  display: flex; justify-content: space-between; gap: 10px;
-  font-size: 11px; color: var(--text-muted);
-  padding: 6px 10px 4px;
-}
-.unit-menu-head .tier { color: var(--ally); }
-
-/* .icon-btn задаёт display: flex и перебивал бы атрибут hidden */
-.icon-btn[hidden] { display: none; }
-
-/* Набор защитников планеты в шапке списка уровней */
-.pb-roster { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 6px; }
-.pb-roster canvas { display: block; }
