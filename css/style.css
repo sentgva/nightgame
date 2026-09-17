@@ -221,6 +221,7 @@ html, body {
 }
 .planet-card:active { transform: scale(.98); }
 .planet-card.locked { background: var(--card-locked); border-color: transparent; cursor: default; }
+/* Цвет конкретной планеты проставляется инлайном при сборке карточки */
 .planet-card.current { border-color: var(--ally); }
 .planet-card canvas { display: block; touch-action: none; }
 .planet-card .pc-name {
@@ -307,6 +308,7 @@ html, body {
 .codex-cost { font-size: 11px; color: var(--spark); }
 .codex-planet-mark {
   width: 34px; height: 34px; flex: 0 0 34px;
+  /* Цвет и заливка приходят из самой планеты, здесь только запасной вариант */
   border-radius: 10px; border: 1px solid var(--ice);
   color: var(--ice); background: var(--fill-ice);
   display: flex; align-items: center; justify-content: center;

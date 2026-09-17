@@ -254,6 +254,13 @@ var UI = {
     card.className = 'planet-card' + (locked ? ' locked' : '') +
       (current ? ' current' : '') + (big ? ' big' : '');
 
+    /* Где игрок сейчас — видно по цвету самой планеты, а не по общему
+       зелёному: иначе оранжевые Пустоши выделялись зелёной рамкой. */
+    if (current) {
+      card.style.borderColor = planet.color;
+      card.style.boxShadow = '0 0 0 3px ' + this.tint(planet.color, 0.12);
+    }
+
     var size = big
       ? Math.max(120, Math.min(170, Math.floor(window.innerWidth * 0.42)))
       : Math.max(64, Math.min(96, Math.floor((window.innerWidth - 90) / 3)));
@@ -275,6 +282,7 @@ var UI = {
     var score = document.createElement('div');
     score.className = 'pc-score';
     score.textContent = locked ? 'Закрыта' : got + ' / ' + (levels.length * 3);
+    if (!locked) score.style.color = planet.color;
 
     card.appendChild(cv);
     card.appendChild(name);
@@ -592,6 +600,15 @@ var UI = {
     }
   },
 
+  /* Цвет планеты с прозрачностью: подсветка и заливки берутся из него же,
+     чтобы не заводить второй набор цветов рядом с PLANETS. */
+  tint: function (hex, alpha) {
+    var h = hex.replace('#', '');
+    if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+    var n = parseInt(h, 16);
+    return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + alpha + ')';
+  },
+
   /* Подзаголовок внутри раскрытой планеты */
   codexSub: function (text) {
     var el = document.createElement('div');
@@ -612,6 +629,9 @@ var UI = {
     var mark = document.createElement('div');
     mark.className = 'codex-planet-mark';
     mark.textContent = planet.id;
+    mark.style.color = planet.color;
+    mark.style.borderColor = planet.color;
+    mark.style.background = planet.fill;
 
     var meta = document.createElement('div');
     meta.className = 'codex-meta';
@@ -641,7 +661,7 @@ var UI = {
     }
 
     var foes = Waves.bestiaryFor(planet.id);
-    body.appendChild(this.codexSub('Кто идёт с той стороны \u00b7 ' + foes.length));
+    body.appendChild(this.codexSub('Враги планеты \u00b7 ' + foes.length));
     for (var f = 0; f < foes.length; f++) {
       body.appendChild(this.makeCodexFoeBlock(foes[f]));
     }
