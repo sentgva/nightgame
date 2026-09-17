@@ -45,7 +45,6 @@ var UI = {
       btnDevGame: $('btn-dev-game'),
       devPanel: $('dev-panel'),
       devImmortal: $('dev-immortal'),
-      menuNote: $('menu-note'),
       btnEndless: $('btn-endless'),
       btnSound: $('btn-sound'),
       btnPause: $('btn-pause'),
@@ -74,32 +73,58 @@ var UI = {
 
   /* Знак на главном экране: луна над рубежом. Чем проще, тем лучше
      читается на маленьком экране. */
+  /* Знак на главном экране — серп луны. Серп вырезается тёмным кругом
+     со смещением: так форма читается силуэтом, без градиентов и текстур. */
   drawMenuMark: function () {
     var cv = document.getElementById('menu-mark-canvas');
     if (!cv) return;
+    var S = 120;
     var dpr = Math.min(window.devicePixelRatio || 1, 3);
-    cv.width = 120 * dpr; cv.height = 120 * dpr;
-    cv.style.width = '120px'; cv.style.height = '120px';
+    cv.width = S * dpr; cv.height = S * dpr;
+    cv.style.width = S + 'px'; cv.style.height = S + 'px';
     var ctx = cv.getContext('2d');
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    var cx = S / 2, cy = S / 2, r = 34;
 
-    // Луна
-    ctx.globalAlpha = 0.14;
+    // Ореол
+    ctx.globalAlpha = 0.10;
     ctx.fillStyle = PAL.spark;
-    Draw.circle(ctx, 60, 48, 34);
+    Draw.circle(ctx, cx, cy, r + 12);
+    ctx.fill();
+    ctx.globalAlpha = 0.16;
+    Draw.circle(ctx, cx, cy, r + 5);
     ctx.fill();
     ctx.globalAlpha = 1;
+
+    // Диск и вырезанный серп
+    ctx.save();
+    Draw.circle(ctx, cx, cy, r);
+    ctx.clip();
+    ctx.fillStyle = PAL.spark;
+    ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+    ctx.fillStyle = PAL.bgDeep;
+    Draw.circle(ctx, cx + r * 0.46, cy - r * 0.22, r * 0.92);
+    ctx.fill();
+    ctx.restore();
+
+    // Кромка серпа
     ctx.strokeStyle = PAL.spark;
     ctx.lineWidth = 1.5;
-    Draw.circle(ctx, 60, 48, 26);
+    ctx.globalAlpha = 0.5;
+    Draw.circle(ctx, cx, cy, r);
     ctx.stroke();
-
-    // Рубеж под ней
-    ctx.globalAlpha = 0.18;
-    ctx.fillStyle = PAL.danger;
-    ctx.fillRect(14, 96, 92, 6);
     ctx.globalAlpha = 1;
-    ctx.fillRect(14, 98, 92, 2);
+
+    // Пара кратеров на освещённой стороне
+    ctx.fillStyle = PAL.bgDeep;
+    ctx.globalAlpha = 0.16;
+    Draw.circle(ctx, cx - r * 0.42, cy - r * 0.10, r * 0.16);
+    ctx.fill();
+    Draw.circle(ctx, cx - r * 0.20, cy + r * 0.40, r * 0.11);
+    ctx.fill();
+    Draw.circle(ctx, cx - r * 0.55, cy + r * 0.34, r * 0.07);
+    ctx.fill();
+    ctx.globalAlpha = 1;
   },
 
   bindMenu: function () {
@@ -135,13 +160,6 @@ var UI = {
 
   refreshMenu: function () {
     var d = Storage.data;
-    var name = TG.userName();
-    var note = 'Открыто уровней: ' + Math.min(d.maxLevel, Waves.total) + ' из ' + Waves.total;
-    if (d.campaignDone) note = 'Кампания пройдена';
-    if (d.endlessBest) note += ' · рекорд: ' + d.endlessBest + ' волн';
-    if (!Storage.available) note += ' · прогресс не сохраняется';
-    if (name) note = name + ', ' + note.charAt(0).toLowerCase() + note.slice(1);
-    this.el.menuNote.textContent = note + ' · v' + APP_VERSION;
     this.el.btnDev.classList.toggle('on', !!d.dev);
     this.el.btnEndless.hidden = !d.campaignDone;
   },

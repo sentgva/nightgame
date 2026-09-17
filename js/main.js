@@ -4,7 +4,7 @@
 /* Версия сборки. Дублируется в ?v= у css и js в index.html — у webview
    Telegram свой кэш, который не смотрит на Cache-Control. При каждой выкатке
    поднимать оба места, иначе игроки увидят старую версию. */
-var APP_VERSION = '16';
+var APP_VERSION = '17';
 
 var Main = {
   boot: function () {

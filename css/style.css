@@ -125,7 +125,6 @@ html, body {
 .title { font-size: 22px; font-weight: 500; margin: 0; letter-spacing: .2px; }
 .subtitle { font-size: 11px; color: var(--text-muted); margin: 4px 0 26px; letter-spacing: 2px; }
 .menu-buttons { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 260px; }
-.menu-note { font-size: 11px; color: var(--text-muted); margin: 18px 0 6px; min-height: 14px; }
 
 /* ---------- Тумблер ---------- */
 .btn.toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
