@@ -383,21 +383,12 @@ html, body {
 
 .card {
   position: relative; flex: 0 0 66px;
-  width: 66px; height: 66px;
+  width: 66px; height: 64px;
   background: var(--card-bg); border: 1px solid var(--grid-line);
-  border-radius: 12px; overflow: hidden;
+  border-radius: 10px; overflow: hidden;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 1px; cursor: pointer;
-  transition: transform .12s ease, border-color .12s ease, box-shadow .12s ease;
-}
-/* Полоска цвета юнита сверху карточки: роль читается ещё до иконки */
-.card::before {
-  content: ""; position: absolute; left: 0; right: 0; top: 0; height: 3px;
-  background: var(--accent, var(--grid-line));
-}
-.card.locked::before { opacity: .35; }
-.card.selected {
-  box-shadow: 0 0 0 1px var(--accent, var(--text-main)) inset;
+  transition: transform .12s ease, border-color .12s ease;
 }
 .card canvas { display: block; }
 .card-name { font-size: 11px; line-height: 1.1; color: var(--text-main); }

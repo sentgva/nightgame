@@ -80,12 +80,12 @@ var ENEMY_TYPES = {
   titan: {
     id: 'titan', name: 'Титан',
     hp: 3000, armor: 800, speed: 0.10, damage: 90, atkRate: 0.6,
-    width: 2, scale: 1.75, boss: true, spark: 400, sparkChance: 1
+    width: 2, scale: 1.5, boss: true, spark: 400, sparkChance: 1
   },
   boss: {
     id: 'boss', name: 'Колосс',
     hp: 1800, speed: 0.15, damage: 70, atkRate: 0.8,
-    width: 2, scale: 1.75, boss: true, spark: 300, sparkChance: 1
+    width: 2, scale: 1.5, boss: true, spark: 300, sparkChance: 1
   }
 };
 
@@ -170,42 +170,13 @@ var Enemies = {
     var bob = moving ? gait * cell * 0.014 : 0;
     var lean = moving ? gait * 0.05 : 0;
 
-    // Тень под ногами: привязывает врага к земле
-    var bodyW = Enemies.bodySize(enemy, cell) * (enemy.width > 1 ? 1.7 : 1);
-    ctx.save();
-    ctx.globalAlpha = (enemy.spawnT < 1 ? enemy.spawnT : 1) * 0.4;
-    ctx.fillStyle = PAL.bgDeep;
-    ctx.beginPath();
-    ctx.ellipse(x, y + bodyW * 0.48, bodyW * 0.42, bodyW * 0.12, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-
-    // Походка вразвалку: тело поочерёдно приседает и вытягивается
-    var squash = moving ? gait * 0.035 : 0;
-
     ctx.save();
     ctx.translate(x, y + bob);
-    ctx.scale(sc * (1 + squash), sc * (1 - squash));
+    ctx.scale(sc, sc);
     if (lean) ctx.rotate(lean);
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
     if (enemy.spawnT < 1) ctx.globalAlpha = enemy.spawnT;
-
-    // Босс тащит за собой тяжёлую ауру — видно издалека, что идёт не рядовой
-    if (enemy.def.boss) {
-      ctx.save();
-      var beat = 0.5 + 0.5 * Math.sin(time * 1.6);
-      ctx.globalAlpha *= 0.10 + 0.10 * beat;
-      ctx.fillStyle = PAL.enemy;
-      Draw.circle(ctx, 0, 0, cell * (0.50 + 0.05 * beat));
-      ctx.fill();
-      ctx.globalAlpha = (enemy.spawnT < 1 ? enemy.spawnT : 1) * 0.35;
-      ctx.strokeStyle = PAL.enemy;
-      ctx.lineWidth = Math.max(1, 1.4 * k);
-      Draw.circle(ctx, 0, 0, cell * 0.52);
-      ctx.stroke();
-      ctx.restore();
-    }
 
     var shape = Enemies.shapes[enemy.type] || Enemies.shapes.walker;
     shape(ctx, cell, k, enemy, time, gait);
@@ -251,7 +222,7 @@ var Enemies = {
     ctx.restore();
 
     // Полоска HP — ровно по ширине тела, только после первого урона
-    if ((enemy.damaged || enemy.def.boss) && !enemy.dead) {
+    if (enemy.damaged && !enemy.dead) {
       var w = Enemies.bodySize(enemy, cell) * (enemy.width > 1 ? 1.7 : 1);
       var barH = Math.max(3, 3.5 * k);
       var barY = y + Enemies.bodySize(enemy, cell) * 0.62;
@@ -271,26 +242,12 @@ var Enemies = {
     ctx.stroke();
   },
 
-  /* Пара глаз — главный опознавательный признак. Вокруг зрачка лёгкий
-     ореол: в темноте враг должен читаться именно по свечению глаз. */
+  /* Пара глаз — главный опознавательный признак */
   eyes: function (ctx, u, k, e, gapFactor, ey, r) {
+    ctx.fillStyle = PAL.enemy;
     var g = u * gapFactor;
-    ctx.save();
-    for (var i = -1; i <= 1; i += 2) {
-      ctx.globalAlpha *= 1;
-      ctx.fillStyle = PAL.enemy;
-      var a0 = ctx.globalAlpha;
-      ctx.globalAlpha = a0 * 0.22;
-      Draw.circle(ctx, i * g, ey, r * 2.6); ctx.fill();
-      ctx.globalAlpha = a0;
-      Draw.circle(ctx, i * g, ey, r); ctx.fill();
-      // Блик делает глаз живым, а не нарисованной точкой
-      ctx.fillStyle = '#FFE3E8';
-      ctx.globalAlpha = a0 * 0.8;
-      Draw.circle(ctx, i * g - r * 0.3, ey - r * 0.3, r * 0.34); ctx.fill();
-      ctx.globalAlpha = a0;
-    }
-    ctx.restore();
+    Draw.circle(ctx, -g, ey, r); ctx.fill();
+    Draw.circle(ctx, g, ey, r); ctx.fill();
   },
 
   mouth: function (ctx, u, k, w, my) {
