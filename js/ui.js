@@ -198,7 +198,16 @@ var UI = {
     var d = Storage.data;
     var self = this;
 
-    for (var a = 1; a <= 3; a++) {
+    // Число актов берём из конфига, а не из константы: иначе новый акт
+    // появляется в данных, но не доезжает до экрана
+    var acts = [];
+    for (var ai = 0; ai < PLANETS.length; ai++) {
+      if (acts.indexOf(PLANETS[ai].act) === -1) acts.push(PLANETS[ai].act);
+    }
+    acts.sort(function (x, y) { return x - y; });
+
+    for (var ak = 0; ak < acts.length; ak++) {
+      var a = acts[ak];
       var planets = Waves.ofAct(a);
       if (!planets.length) continue;
       var actLocked = this.planetLocked(planets[0]);
