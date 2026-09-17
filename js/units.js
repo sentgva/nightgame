@@ -493,11 +493,20 @@ var Units = {
     return Math.round(unit.def.cost * TIER_COST[unit.level]);
   },
 
-  /* Возврат считаем от всего вложенного, включая улучшения */
+  /* Возврат считаем от всего вложенного, включая улучшения, и урезаем
+     по остатку здоровья: продавать полумёртвого за полную цену — способ
+     бесконечно отыгрывать вложения обратно. */
   sellPrice: function (unit) {
     var paid = unit.def.cost;
     for (var t = 1; t < unit.level; t++) paid += Math.round(unit.def.cost * TIER_COST[t]);
-    return Math.floor(paid * CONFIG.sellRefund);
+    var health = unit.maxHp ? Math.max(0, Math.min(1, unit.hp / unit.maxHp)) : 1;
+    return Math.max(1, Math.floor(paid * CONFIG.sellRefund * health));
+  },
+
+  /* Целость юнита в процентах — показываем её рядом с ценой продажи */
+  healthPct: function (unit) {
+    if (!unit.maxHp) return 100;
+    return Math.max(0, Math.round(unit.hp / unit.maxHp * 100));
   },
 
   upgrade: function (unit) {

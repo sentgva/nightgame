@@ -6,88 +6,108 @@
 var ENEMY_TYPES = {
   walker: {
     id: 'walker', name: 'Бродяга',
+    role: 'Идёт прямо и медленно. Основа любой волны',
     hp: 100, speed: 0.20, damage: 20, atkRate: 1.0,
     scale: 1.0, spark: 25, sparkChance: 0.6
   },
   runner: {
     id: 'runner', name: 'Бегун',
+    role: 'Вдвое быстрее прочих, но хлипкий',
     hp: 60, speed: 0.38, damage: 12, atkRate: 1.4,
     scale: 0.8, eyeTight: true, spark: 20, sparkChance: 0.6
   },
   armored: {
     id: 'armored', name: 'Броненосец',
+    role: 'Первые 200 урона держит броня. Магнит снимает её целиком',
     hp: 400, armor: 200, speed: 0.15, damage: 30, atkRate: 0.8,
     scale: 1.1, spark: 40, sparkChance: 0.7
   },
   jumper: {
     id: 'jumper', name: 'Прыгун',
+    role: 'Один раз перескакивает через ряд защитников',
     hp: 120, speed: 0.23, damage: 20, atkRate: 1.0,
     jumps: 1, scale: 1.0, spark: 25, sparkChance: 0.6
   },
   spitter: {
     id: 'spitter', name: 'Плевун',
+    role: 'Бьёт с двух клеток и не подходит вплотную. Зонт сбивает плевки',
     hp: 150, speed: 0.15, damage: 12, atkRate: 0.8, rangedRange: 2,
     scale: 1.0, spark: 30, sparkChance: 0.6
   },
   phantom: {
     id: 'phantom', name: 'Фантом',
+    role: 'Уходит в фазу: в этот момент снаряды проходят насквозь',
     hp: 140, speed: 0.22, damage: 18, atkRate: 1.0,
     phaseEvery: 3.5, phaseFor: 1.2,          // уходит в фазу и не ловит снаряды
     scale: 1.0, spark: 30, sparkChance: 0.6
   },
   burster: {
     id: 'burster', name: 'Пепельник',
+    role: 'При смерти обжигает защитника под собой',
     hp: 110, speed: 0.20, damage: 14, atkRate: 1.0,
     deathBlast: 80,                          // при смерти обжигает защитника под собой
     scale: 1.0, spark: 25, sparkChance: 0.6
   },
   swarm: {
     id: 'swarm', name: 'Рой',
+    role: 'При смерти распадается надвое',
     hp: 180, speed: 0.16, damage: 16, atkRate: 1.0,
     splitInto: 'runner', splitCount: 2,      // при смерти распадается надвое
     scale: 1.15, spark: 30, sparkChance: 0.6
   },
   healer: {
     id: 'healer', name: 'Лекарь',
+    role: 'Чинит соседей. Выбивать первым',
     hp: 200, speed: 0.17, damage: 10, atkRate: 0.6,
     heal: 8, healRange: 2,                  // чинит соседей в своей колонке
     scale: 1.0, spark: 45, sparkChance: 0.7
   },
   carrier: {
     id: 'carrier', name: 'Носитель',
+    role: 'Высаживает бегунов прямо на ходу',
     hp: 260, speed: 0.13, damage: 16, atkRate: 0.8,
     spawnEvery: 6, spawnType: 'runner',      // на ходу высаживает бегунов
     scale: 1.2, spark: 40, sparkChance: 0.7
   },
   howler: {
     id: 'howler', name: 'Ревун',
+    role: 'Разгоняет всех врагов вокруг себя',
     hp: 180, speed: 0.18, damage: 14, atkRate: 1.0,
     auraSpeed: 1.28, auraRange: 2,           // разгоняет соседей
     scale: 1.05, spark: 35, sparkChance: 0.6
   },
   shielder: {
     id: 'shielder', name: 'Щитоносец',
+    role: 'Режет урон по соседям. Разрядник его щита не замечает',
     hp: 220, speed: 0.14, damage: 18, atkRate: 0.8,
     auraGuard: 0.8, auraRange: 2,            // вдвое режет урон по соседям
     scale: 1.1, spark: 40, sparkChance: 0.7
   },
   devourer: {
     id: 'devourer', name: 'Пожиратель',
+    role: 'Съедает защитника целиком. Не берёт только барьер',
     hp: 200, speed: 0.20, damage: 25, atkRate: 1.2,
     devour: 1,                               // первого защитника съедает целиком
     scale: 1.05, spark: 35, sparkChance: 0.6
   },
   titan: {
     id: 'titan', name: 'Титан',
+    role: 'Босс в тяжёлой броне. Самый прочный враг в игре',
     hp: 3000, armor: 800, speed: 0.10, damage: 90, atkRate: 0.6,
     width: 2, scale: 1.5, boss: true, spark: 400, sparkChance: 1
   },
   boss: {
     id: 'boss', name: 'Колосс',
+    role: 'Босс. Занимает две колонки и приносит 300 искр',
     hp: 1800, speed: 0.15, damage: 70, atkRate: 0.8,
     width: 2, scale: 1.5, boss: true, spark: 300, sparkChance: 1
   }
 };
+
+/* Порядок в бестиарии: от простых к тяжёлым */
+var ENEMY_ORDER = ['walker', 'runner', 'jumper', 'spitter', 'burster', 'armored',
+                   'phantom', 'swarm', 'carrier', 'howler', 'shielder', 'healer',
+                   'devourer', 'boss', 'titan'];
 
 var Enemies = {
   /* Создание врага. opts.hpMul — множитель HP для усиленных волн. */
@@ -234,12 +254,35 @@ var Enemies = {
 
   /* Корпус врага: тёмная заливка, обводка цветом линий сетки или льда */
   shell: function (ctx, e, k, drawPath) {
+    drawPath();
+    // Сперва тёмный контур пожирнее: он отделяет силуэт от фона поля,
+    // а заливка поверх съедает его внутреннюю половину
+    ctx.strokeStyle = PAL.outline;
+    ctx.lineWidth = Math.max(1.6, 2.6 * k);
+    ctx.stroke();
+
     ctx.fillStyle = e.hurt > 0 ? '#D8DEE6' : (e.armor > 0 ? PAL.fillArmor : PAL.fillEnemy);
+    ctx.fill();
+
     ctx.strokeStyle = e.slowT > 0 ? PAL.ice : PAL.gridLine;
     ctx.lineWidth = Math.max(1, k);
-    drawPath();
-    ctx.fill();
     ctx.stroke();
+  },
+
+  /* Иконка врага для справочника */
+  icon: function (ctx, x, y, cell, typeId) {
+    var e = Enemies.create(typeId, 0, {});
+    e.spawnT = 1;
+    ctx.save();
+    ctx.translate(x, y);
+    var sc = 1 / (e.def.scale || 1);
+    if (e.def.boss) sc *= 0.7;
+    ctx.scale(sc, sc);
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    var shape = Enemies.shapes[typeId] || Enemies.shapes.walker;
+    shape(ctx, cell, cell / 64, e, 0, 0);
+    ctx.restore();
   },
 
   /* Пара глаз — главный опознавательный признак */

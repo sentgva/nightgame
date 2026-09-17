@@ -390,6 +390,30 @@ html, body {
 }
 .toast.show { opacity: 1; }
 
+/* Подсказка по выбранной карточке: что юнит умеет */
+.unit-info {
+  position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 17;
+  background: rgba(14,19,27,.95);
+  border: 1px solid var(--grid-line); border-left: 3px solid var(--accent, var(--grid-line));
+  border-radius: 10px; padding: 8px 12px;
+  pointer-events: none;
+}
+.unit-info .ui-name { font-size: 12px; font-weight: 500; color: var(--accent, var(--text-main)); }
+.unit-info .ui-role { font-size: 11px; color: var(--text-muted); margin-top: 2px; line-height: 1.4; }
+.unit-info .ui-stats {
+  display: flex; flex-wrap: wrap; gap: 4px 12px;
+  font-size: 11px; color: var(--text-muted); margin-top: 5px;
+}
+.unit-info .ui-stats b { font-weight: 500; color: var(--text-main); }
+
+/* Заголовок раздела в справочнике */
+.codex-title {
+  flex: 0 0 auto;
+  font-size: 11px; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 1px;
+  padding: 10px 2px 2px;
+}
+
 /* ---------- Нижняя панель с карточками ---------- */
 .dock {
   height: var(--dock-h); flex: 0 0 var(--dock-h);

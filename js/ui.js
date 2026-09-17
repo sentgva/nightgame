@@ -41,6 +41,7 @@ var UI = {
       levelsTitle: $('levels-title'),
       planetView: $('planet-view'),
       codexList: $('codex-list'),
+      unitInfo: $('unit-info'),
       btnDev: $('btn-dev'),
       btnDevGame: $('btn-dev-game'),
       devPanel: $('dev-panel'),
@@ -528,10 +529,75 @@ var UI = {
     var list = this.el.codexList;
     list.innerHTML = '';
 
-    // Сперва планеты: своя механика и своя пятёрка защитников
+    // Сперва планеты: своя механика и свой набор защитников
+    var t1 = document.createElement('div');
+    t1.className = 'codex-title';
+    t1.textContent = 'Планеты и их защитники';
+    list.appendChild(t1);
     for (var p = 0; p < PLANETS.length; p++) {
       list.appendChild(this.makePlanetCodex(PLANETS[p]));
     }
+
+    // Затем бестиарий
+    var t2 = document.createElement('div');
+    t2.className = 'codex-title';
+    t2.textContent = 'Кто идёт с той стороны';
+    list.appendChild(t2);
+    for (var i = 0; i < ENEMY_ORDER.length; i++) {
+      list.appendChild(this.makeEnemyCodex(ENEMY_ORDER[i]));
+    }
+  },
+
+  /* Карточка врага: силуэт, чем опасен и сухие цифры */
+  makeEnemyCodex: function (typeId) {
+    var def = ENEMY_TYPES[typeId];
+    var item = document.createElement('div');
+    item.className = 'codex-item';
+
+    var head = document.createElement('div');
+    head.className = 'codex-head';
+
+    var box = 40;
+    var cv = document.createElement('canvas');
+    var dpr = Math.min(window.devicePixelRatio || 1, 3);
+    cv.width = Math.round(box * dpr);
+    cv.height = Math.round(box * dpr);
+    cv.style.width = box + 'px';
+    cv.style.height = box + 'px';
+    var ctx = cv.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    Enemies.icon(ctx, box / 2, box / 2, box * 1.15, typeId);
+    head.appendChild(cv);
+
+    var meta = document.createElement('div');
+    meta.className = 'codex-meta';
+    meta.innerHTML = '<div class="codex-name">' + def.name + '</div>' +
+      '<div class="codex-role">' + def.role + '</div>';
+    head.appendChild(meta);
+
+    var hp = document.createElement('div');
+    hp.className = 'codex-cost';
+    hp.textContent = def.hp + ' HP';
+    head.appendChild(hp);
+
+    var body = document.createElement('div');
+    body.className = 'codex-body';
+    var lines = [
+      ['Прочность', def.hp + (def.armor ? ' + ' + def.armor + ' брони' : '')],
+      ['Скорость', def.speed >= 0.34 ? 'быстро' : (def.speed >= 0.2 ? 'средне' : 'медленно')],
+      ['Урон по защитнику', def.damage],
+      ['Даёт искр', def.spark]
+    ];
+    var html = '';
+    for (var i = 0; i < lines.length; i++) {
+      html += '<div class="codex-stat"><span>' + lines[i][0] + '</span><b>' + lines[i][1] + '</b></div>';
+    }
+    body.innerHTML = html;
+
+    head.addEventListener('click', function () { item.classList.toggle('open'); });
+    item.appendChild(head);
+    item.appendChild(body);
+    return item;
   },
 
   /* Карточка планеты: механика, описание и разбор её набора */
@@ -725,6 +791,7 @@ var UI = {
     this.showUnitMenu(game, null);
     this.showPause(false);
     this.el.overlayResult.classList.add('hidden');
+    this.showUnitInfo(null);
     this.el.btnDevGame.hidden = !game.dev;
     this.el.devPanel.classList.add('hidden');
     this.syncDevPanel(game);
@@ -814,6 +881,28 @@ var UI = {
     for (var id in this.cards) {
       this.cards[id].root.classList.toggle('selected', id === typeId);
     }
+    this.showUnitInfo(typeId);
+  },
+
+  /* Что умеет юнит: показываем при тапе по карточке, чтобы не надо было
+     лезть в справочник посреди волны. */
+  showUnitInfo: function (typeId) {
+    var box = this.el.unitInfo;
+    if (!typeId) { box.classList.add('hidden'); return; }
+    var def = UNIT_TYPES[typeId];
+    if (!def) { box.classList.add('hidden'); return; }
+
+    box.style.setProperty('--accent', def.color);
+    var lines = Units.describe(def, 1);
+    var stats = '';
+    for (var i = 0; i < lines.length && i < 4; i++) {
+      stats += '<span>' + lines[i][0] + ' <b>' + lines[i][1] + '</b></span>';
+    }
+    box.innerHTML =
+      '<div class="ui-name">' + def.name + ' · ' + def.cost + ' искр</div>' +
+      '<div class="ui-role">' + def.role + '</div>' +
+      '<div class="ui-stats">' + stats + '</div>';
+    box.classList.remove('hidden');
   },
 
   shakeCard: function (typeId) {
@@ -888,11 +977,13 @@ var UI = {
     var head = document.createElement('div');
     head.className = 'unit-menu-head';
     head.innerHTML = '<span>' + unit.def.name + '</span>' +
-      '<span class="tier">' + unit.level + ' / ' + maxTier + '</span>';
+      '<span class="tier">' + unit.level + ' / ' + maxTier +
+      ' · ' + Units.healthPct(unit) + '%</span>';
     m.appendChild(head);
 
     var sell = document.createElement('button');
     sell.innerHTML = '<span>Продать</span><span class="price">+' + Units.sellPrice(unit) + '</span>';
+    sell.title = 'Возврат падает вместе с прочностью';
     sell.addEventListener('click', function (e) { e.stopPropagation(); Game.sellUnit(unit); });
     m.appendChild(sell);
 

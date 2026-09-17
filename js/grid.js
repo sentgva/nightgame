@@ -7,6 +7,7 @@ var PAL = {
   bgPanel:    '#0E131B',
   bgField:    '#121820',
   gridLine:   '#1E2836',
+  outline:    '#05070B',   // общий тёмный контур: отделяет фигуру от фона
   textMain:   '#E8EDF2',
   textMuted:  '#6B7A8F',
   spark:      '#FFB347',

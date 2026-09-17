@@ -1496,6 +1496,8 @@ var Game = {
     if (this.selected === typeId) { this.deselect(); return; }
     var def = UNIT_TYPES[typeId];
     if (this.cardCd[typeId] > 0 || this.sparks < def.cost) {
+      // Поставить нельзя, но посмотреть, что умеет, всё равно можно
+      UI.showUnitInfo(typeId);
       UI.shakeCard(typeId);
       Sound.play('deny');
       return;
