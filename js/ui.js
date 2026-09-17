@@ -45,6 +45,7 @@ var UI = {
       btnDevGame: $('btn-dev-game'),
       devPanel: $('dev-panel'),
       devImmortal: $('dev-immortal'),
+      menuNote: $('menu-note'),
       btnEndless: $('btn-endless'),
       btnSound: $('btn-sound'),
       btnPause: $('btn-pause'),
@@ -73,65 +74,32 @@ var UI = {
 
   /* Знак на главном экране: луна над рубежом. Чем проще, тем лучше
      читается на маленьком экране. */
-  /* Знак в меню: солнце над грядкой, из которой тянется росток */
   drawMenuMark: function () {
     var cv = document.getElementById('menu-mark-canvas');
     if (!cv) return;
-    var S = 150;
     var dpr = Math.min(window.devicePixelRatio || 1, 3);
-    cv.width = S * dpr; cv.height = S * dpr;
-    cv.style.width = S + 'px'; cv.style.height = S + 'px';
+    cv.width = 120 * dpr; cv.height = 120 * dpr;
+    cv.style.width = '120px'; cv.style.height = '120px';
     var ctx = cv.getContext('2d');
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    var cx = S / 2, cy = 58;
 
-    // Лучи
-    ctx.strokeStyle = '#E09B00';
-    ctx.lineWidth = 5;
-    ctx.lineCap = 'round';
-    for (var i = 0; i < 12; i++) {
-      var ang = i * Math.PI / 6;
-      ctx.beginPath();
-      ctx.moveTo(cx + Math.cos(ang) * 38, cy + Math.sin(ang) * 38);
-      ctx.lineTo(cx + Math.cos(ang) * 50, cy + Math.sin(ang) * 50);
-      ctx.stroke();
-    }
-
-    // Диск солнца
-    var g = ctx.createRadialGradient(cx - 10, cy - 12, 4, cx, cy, 36);
-    g.addColorStop(0, '#FFF3C4');
-    g.addColorStop(0.55, '#FFD54F');
-    g.addColorStop(1, '#E09B00');
-    ctx.fillStyle = g;
-    ctx.strokeStyle = '#2F2013';
-    ctx.lineWidth = 3;
-    Draw.circle(ctx, cx, cy, 34);
-    ctx.fill(); ctx.stroke();
-
-    // Грядка
-    ctx.fillStyle = '#5D4037';
-    ctx.strokeStyle = '#2F2013';
-    ctx.lineWidth = 3;
-    Draw.roundRect(ctx, 16, 116, S - 32, 22, 8);
-    ctx.fill(); ctx.stroke();
-    ctx.fillStyle = '#8BC34A';
-    Draw.roundRect(ctx, 16, 112, S - 32, 10, 5);
-    ctx.fill(); ctx.stroke();
-
-    // Росток
-    ctx.strokeStyle = '#2E6B1E';
-    ctx.lineWidth = 5;
-    ctx.beginPath();
-    ctx.moveTo(cx, 116);
-    ctx.quadraticCurveTo(cx - 4, 104, cx, 96);
+    // Луна
+    ctx.globalAlpha = 0.14;
+    ctx.fillStyle = PAL.spark;
+    Draw.circle(ctx, 60, 48, 34);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = PAL.spark;
+    ctx.lineWidth = 1.5;
+    Draw.circle(ctx, 60, 48, 26);
     ctx.stroke();
-    Draw.leaf(ctx, cx, 104, 20, 9, -0.4, '#7CB342', '#2E6B1E', 1);
-    Draw.leaf(ctx, cx, 100, 18, 8, 3.5, '#7CB342', '#2E6B1E', 1);
-    ctx.fillStyle = '#7CB342';
-    ctx.strokeStyle = '#2E6B1E';
-    ctx.lineWidth = 3;
-    Draw.circle(ctx, cx, 94, 9);
-    ctx.fill(); ctx.stroke();
+
+    // Рубеж под ней
+    ctx.globalAlpha = 0.18;
+    ctx.fillStyle = PAL.danger;
+    ctx.fillRect(14, 96, 92, 6);
+    ctx.globalAlpha = 1;
+    ctx.fillRect(14, 98, 92, 2);
   },
 
   bindMenu: function () {
@@ -167,6 +135,13 @@ var UI = {
 
   refreshMenu: function () {
     var d = Storage.data;
+    var name = TG.userName();
+    var note = 'Открыто уровней: ' + Math.min(d.maxLevel, Waves.total) + ' из ' + Waves.total;
+    if (d.campaignDone) note = 'Кампания пройдена';
+    if (d.endlessBest) note += ' · рекорд: ' + d.endlessBest + ' волн';
+    if (!Storage.available) note += ' · прогресс не сохраняется';
+    if (name) note = name + ', ' + note.charAt(0).toLowerCase() + note.slice(1);
+    this.el.menuNote.textContent = note + ' · v' + APP_VERSION;
     this.el.btnDev.classList.toggle('on', !!d.dev);
     this.el.btnEndless.hidden = !d.campaignDone;
   },
@@ -679,7 +654,6 @@ var UI = {
     var card = document.createElement('div');
     card.className = 'card';
     card.dataset.unit = typeId;
-    card.style.setProperty('--accent', def.color);
 
     var cv = document.createElement('canvas');
     var dpr = Math.min(window.devicePixelRatio || 1, 3);

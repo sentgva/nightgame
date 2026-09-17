@@ -2,69 +2,51 @@
    Поле 5x7, клетка строго квадратная, размер считается динамически. */
 
 /* Палитра продублирована из css/style.css — канвасу нужны литералы. */
-/* Палитра в духе PvZ: дневной газон, насыщенные тела, тёмная обводка.
-   Главное отличие от прежней схемы — заливка теперь светлая и яркая,
-   а контур тёмный. Раньше было наоборот. */
 var PAL = {
-  bgDeep:     '#3E6B1F',   // трава за пределами поля
-  bgPanel:    '#6D4C2F',   // деревянные панели интерфейса
-  bgPanelUp:  '#8D6748',   // светлая кромка дерева
-  bgField:    '#8BC34A',   // газон, светлая полоса
-  bgField2:   '#7CB342',   // газон, тёмная полоса
-  soil:       '#5D4037',   // земля по краям
-  gridLine:   '#6B9B33',   // межи между клетками
-  textMain:   '#FFFFFF',
-  textDark:   '#3E2723',
-  textMuted:  '#EFE4C8',
-  outline:    '#2F2013',   // общий тёмный контур, как в мультфильме
+  bgDeep:     '#0A0E14',
+  bgPanel:    '#0E131B',
+  bgField:    '#121820',
+  gridLine:   '#1E2836',
+  textMain:   '#E8EDF2',
+  textMuted:  '#6B7A8F',
+  spark:      '#FFB347',
+  ally:       '#4ADE80',
+  enemy:      '#F43F5E',
+  ice:        '#60A5FA',
+  danger:     '#DC2626',
+  heal:       '#A78BFA',   // лечение и всё, что чинит врагов
+  phase:      '#93C5FD',   // фантом в фазе
+  ash:        '#F97316',   // раскалённые швы пепельника
+  aura:       '#FBBF24',   // аура ревуна: враги вокруг ускоряются
+  shield:     '#38BDF8',   // аура щитоносца: враги вокруг держат урон
+  /* У каждого защитника свой цвет: в бою роль должна читаться по цвету
+     обводки, а не по форме значка. Заливка — очень тёмная пара к нему. */
+  uShooter:   '#4ADE80',  uShooterF:  '#16241C',
+  uShotgun:   '#FACC15',  uShotgunF:  '#2A2410',
+  uRepeater:  '#2DD4BF',  uRepeaterF: '#0E2A2A',
+  uFan:       '#A3E635',  uFanF:      '#1E2A12',
+  uTorch:     '#FB923C',  uTorchF:    '#2A1C10',
+  uMagnet:    '#C084FC',  uMagnetF:   '#221A2E',
+  uBarrier:   '#94A3B8',  uBarrierF:  '#1B2430',
+  uMine:      '#DC2626',  uMineF:     '#2A1618',
+  uMortar:    '#FB7185',  uMortarF:   '#2A1620',
+  uLaser:     '#F1F5F9',  uLaserF:    '#202833',
+  uRepair:    '#E879F9',  uRepairF:   '#281630',
+  uSpikes:    '#A8A29E',  uSpikesF:   '#232122',
+  uChomper:   '#15803D',  uChomperF:  '#10241A',
+  uTesla:     '#38BDF8',  uTeslaF:    '#0E2430',
+  uHarpoon:   '#06B6D4',  uHarpoonF:  '#0B2630',
+  uUmbrella:  '#CBD5E1',  uUmbrellaF: '#1E2632',
+  uPendulum:  '#9333EA',  uPendulumF: '#1E1230',
+  uNet:       '#65A30D',  uNetF:      '#1A2410',
 
-  spark:      '#FFD54F',   // солнце
-  sparkEdge:  '#E09B00',
-  ally:       '#4CAF50',
-  enemy:      '#C62828',
-  ice:        '#4FC3F7',
-  danger:     '#D32F2F',
-  heal:       '#BA68C8',
-  phase:      '#B3E5FC',
-  ash:        '#FF7043',
-  aura:       '#FFB300',
-  shield:     '#4FC3F7',
-
-  zombieSkin: '#AFBFA8',   // кожа
-  zombieSkinD:'#8A9C84',
-  zombieCloth:'#5C6BC0',   // рубаха
-  zombieClothD:'#3949AB',
-  armorPlate: '#90A4AE',
-  armorPlateD:'#546E7A',
-
-  fillAlly:   '#8BC34A',
-  fillEnemy:  '#AFBFA8',
-  fillArmor:  '#90A4AE',
-  fillSpark:  '#FFE082',
-  fillIce:    '#B3E5FC',
-  fillNeutral:'#A1887F',
-
-  /* Тела растений: заливка яркая, обводка — её тёмный вариант */
-  uShooter:   '#33691E',  uShooterF:  '#7CB342',
-  uShotgun:   '#BF360C',  uShotgunF:  '#FF8A65',
-  uRepeater:  '#2E7D32',  uRepeaterF: '#66BB6A',
-  uFan:       '#33691E',  uFanF:      '#9CCC65',
-  uTorch:     '#BF360C',  uTorchF:    '#FF7043',
-  uMagnet:    '#6A1B9A',  uMagnetF:   '#CE93D8',
-  uBarrier:   '#7B4B2A',  uBarrierF:  '#C69C6D',
-  uMine:      '#6D4C2F',  uMineF:     '#C8A165',
-  uMortar:    '#4E342E',  uMortarF:   '#A1887F',
-  uLaser:     '#0288D1',  uLaserF:    '#E1F5FE',
-  uRepair:    '#AD1457',  uRepairF:   '#F48FB1',
-  uSpikes:    '#3E2723',  uSpikesF:   '#8D6E63',
-  uChomper:   '#4A148C',  uChomperF:  '#9575CD',
-  uTesla:     '#01579B',  uTeslaF:    '#4FC3F7',
-  uHarpoon:   '#004D40',  uHarpoonF:  '#4DB6AC',
-  uUmbrella:  '#558B2F',  uUmbrellaF: '#AED581',
-  uPendulum:  '#4A148C',  uPendulumF: '#BA68C8',
-  uNet:       '#827717',  uNetF:      '#DCE775'
+  fillAlly:   '#16241C',
+  fillEnemy:  '#181F2B',
+  fillArmor:  '#1C242F',
+  fillSpark:  '#2A2013',
+  fillIce:    '#152232',
+  fillNeutral:'#1B2430'
 };
-
 
 var Grid = {
   cols: 5,
